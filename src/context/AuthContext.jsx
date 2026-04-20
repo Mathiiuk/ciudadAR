@@ -9,26 +9,21 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Escucha estricta a cambios de sesión generados por Supabase (Login, LogOut, Refresh)
     let mounted = true
 
     const getProfile = async (userId) => {
-      const { data } = await supabase.from('profiles').select('role').eq('id', userId).single()
-      if (mounted) setRole(data?.role || 'ciudadano')
-    }
-
-    const initAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        if (mounted) setUser(session.user)
-        await getProfile(session.user.id)
+      try {
+        const { data } = await supabase.from('profiles').select('role').eq('id', userId).single()
+        if (mounted && data) setRole(data.role)
+      } catch (e) {
+        console.error("Error fetching role:", e)
       }
-      if (mounted) setLoading(false)
     }
 
-    initAuth()
-
+    // Usamos onAuthStateChange que se dispara automáticamente al inicio (INITIAL_SESSION)
+    // y en cada login/logout. Es más robusto que mezclar getSession manual.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth Event:", event)
       if (session?.user) {
         if (mounted) setUser(session.user)
         await getProfile(session.user.id)

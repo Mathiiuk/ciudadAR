@@ -1,15 +1,26 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlertCircle, Loader2 } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
+import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
   const navigate = useNavigate()
+  const { user, loading: authLoading } = useAuth() // Consumimos el estado global de auth
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isRegistering, setIsRegistering] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState(null)
+
+  // SI EL CONTEXTO DICE QUE YA ESTAMOS LOGUEADOS, IR AL MAPA DIRECTO
+  useEffect(() => {
+    if (user && !authLoading) {
+      console.log("Sesión detectada desde Context, redirigiendo a /map...")
+      navigate('/map', { replace: true })
+    }
+  }, [user, authLoading, navigate])
 
   const handleAuth = async (e) => {
     e.preventDefault()
@@ -17,6 +28,7 @@ export default function Login() {
     setErrorMsg(null)
 
     try {
+      console.log("Iniciando intento de login para:", email)
       if (isRegistering) {
         // Sign up flow
         const { data, error } = await supabase.auth.signUp({
@@ -27,7 +39,7 @@ export default function Login() {
         if (error) throw error
 
         if (data?.user) {
-          // Immediately upsert into profiles required by our SQL schema
+          console.log("Usuario creado, insertando perfil...")
           const { error: profileError } = await supabase.from('profiles').upsert([{
             id: data.user.id,
             username: email.split('@')[0] + Math.floor(Math.random() * 1000),
@@ -36,19 +48,22 @@ export default function Login() {
           }])
 
           if (profileError) throw profileError
+          console.log("Perfil creado exitosamente")
           navigate('/map')
         }
       } else {
         // Sign in flow
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password
         })
         
         if (error) throw error
+        console.log("Login exitoso, redirigiendo...", data.user.id)
         navigate('/map')
       }
     } catch (err) {
+      console.error("Error en handleAuth:", err.message)
       setErrorMsg(err.message)
     } finally {
       setLoading(false)
