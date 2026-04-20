@@ -1,10 +1,14 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { Camera, X, MapPin, Send, Loader2 } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
+import { useAuth } from '../context/AuthContext'
+import { useGeolocation } from '../hooks/useGeolocation'
+import { processImageToWebP } from '../utils/imageOptimizer'
 
 export default function CreateReport({ onClose }) {
-  const [position, setPosition] = useState(null)
-  const [geoError, setGeoError] = useState(null)
+  const { user } = useAuth()
+  const { position, geoError } = useGeolocation()
+
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
   const [type, setType] = useState('Mal Estacionamiento')
@@ -13,92 +17,36 @@ export default function CreateReport({ onClose }) {
   const [uploadError, setUploadError] = useState(null)
   
   const fileInputRef = useRef(null)
-  const canvasRef = useRef(null)
-
-  useEffect(() => {
-    let mounted = true
-    if (!navigator.geolocation) {
-      if (mounted) setGeoError("Tu navegador no soporta geolocalización.")
-      return
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        if (mounted) {
-          setPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude })
-        }
-      },
-      (err) => {
-        if (mounted) {
-          if (err.code === 1) setGeoError("Permiso de GPS denegado.")
-          else if (err.code === 2) setGeoError("Posición no disponible.")
-          else setGeoError("Error al obtener ubicación GPS.")
-        }
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    )
-
-    return () => { mounted = false }
-  }, [])
-
-  // WebP Image compression for optimization 
-  const processImageToWebP = (file) => {
-    return new Promise((resolve) => {
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const img = new Image()
-        img.onload = () => {
-          const canvas = document.createElement('canvas')
-          
-          // Max dimension 800px to save backend storage and boost performance
-          const MAX_WIDTH = 800
-          const scaleSize = MAX_WIDTH / img.width
-          canvas.width = MAX_WIDTH
-          canvas.height = img.height * scaleSize
-          
-          const ctx = canvas.getContext('2d')
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-          
-          canvas.toBlob((blob) => {
-            resolve(blob)
-          }, 'image/webp', 0.8)
-        }
-        img.src = event.target.result
-      }
-      reader.readAsDataURL(file)
-    })
-  }
 
   const handleCapture = async (e) => {
     const file = e.target.files[0]
     if (!file) return
 
     // Show instant preview 
-    const previewUrl = URL.createObjectURL(file)
-    setImagePreview(previewUrl)
+    setImagePreview(URL.createObjectURL(file))
     
-    // Compress heavily in background
-    const compressedBlob = await processImageToWebP(file)
-    setImageFile(compressedBlob)
+    // Compress in background using external Utils layer
+    try {
+      const compressedBlob = await processImageToWebP(file)
+      setImageFile(compressedBlob)
+    } catch (err) {
+      setUploadError("Fallo al procesar imagen: " + err)
+    }
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!position) return setUploadError("Aún no detectamos tu ubicación GPS.")
     if (!imageFile) return setUploadError("Debes tomar una foto de la infracción.")
+    if (!user) return setUploadError("Sesión de usuario no válida.")
     
     setIsSubmitting(true)
     setUploadError(null)
 
     try {
-      const { data: userData, error: userError } = await supabase.auth.getUser()
-      if (userError || !userData.user) throw new Error("Debes haber iniciado sesión.")
-
-      // Use a clean UUID via browser Crypto API for safe filenames
       const fileId = crypto.randomUUID()
       const fileName = `${fileId}.webp`
       
-      // Upload to new bucket 'evidencia-infracciones'
       const { data: storageData, error: storageError } = await supabase.storage
         .from('evidencia-infracciones')
         .upload(fileName, imageFile, {
@@ -113,12 +61,10 @@ export default function CreateReport({ onClose }) {
         .from('evidencia-infracciones')
         .getPublicUrl(fileName)
 
-      // PostGIS string format for Geography Point 
       const ewktPoint = `POINT(${position.lng} ${position.lat})`
 
-      // Insert into SQL Production schema
       const { error: dbError } = await supabase.from('infractions').insert([{
-        user_id: userData.user.id,
+        user_id: user.id,
         location: ewktPoint,
         image_url: publicUrlData.publicUrl,
         type: type,
@@ -131,7 +77,7 @@ export default function CreateReport({ onClose }) {
       onClose()
     } catch (error) {
       console.error("Submission error:", error)
-      setUploadError(error.message || "Error al subir reporte. Revisa la consola o asegúrate tener RLS abierto.")
+      setUploadError(error.message || "Error general al procesar la subida.")
     } finally {
       setIsSubmitting(false)
     }

@@ -2,46 +2,32 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { ShieldAlert, CheckCircle, XCircle, ArrowLeft, Loader2 } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
 
 export default function AdminPanel() {
   const navigate = useNavigate()
+  const { role } = useAuth()
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Verificar rol al cargar
-    const checkRoleAndFetch = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return navigate('/')
+    // Re-verify strictly despite ProtectedRoute just in case 
+    if (role !== 'oficial') return
+    
+    const fetchPendingReports = async () => {
+      setLoading(true)
+      const { data, error } = await supabase
+        .from('infractions')
+        .select('*, profiles(full_name)')
+        .eq('status', 'pendiente')
+        .order('created_at', { ascending: false })
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', session.user.id)
-        .single()
-
-      if (!profile || profile.role !== 'oficial') {
-        return navigate('/map')
-      }
-
-      // Si es oficial, traemos las pendientes
-      fetchPendingReports()
+      if (data) setReports(data)
+      setLoading(false)
     }
 
-    checkRoleAndFetch()
-  }, [navigate])
-
-  const fetchPendingReports = async () => {
-    setLoading(true)
-    const { data, error } = await supabase
-      .from('infractions')
-      .select('*, profiles(full_name)')
-      .eq('status', 'pendiente')
-      .order('created_at', { ascending: false })
-
-    if (data) setReports(data)
-    setLoading(false)
-  }
+    fetchPendingReports()
+  }, [role])
 
   const handleUpdateStatus = async (id, newStatus) => {
     const { error } = await supabase

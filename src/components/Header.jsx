@@ -1,29 +1,11 @@
-import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { UserCircle2, ShieldHalf } from 'lucide-react'
-import { supabase } from '../lib/supabaseClient'
+import { useAuth } from '../context/AuthContext'
 
 export default function Header() {
   const navigate = useNavigate()
-  const [isOficial, setIsOficial] = useState(false)
-
-  useEffect(() => {
-    const checkRole = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single()
-        
-        if (data?.role === 'oficial') {
-          setIsOficial(true)
-        }
-      }
-    }
-    checkRole()
-  }, [])
+  const { role } = useAuth()
+  const isOficial = role === 'oficial'
 
   return (
     <header className="absolute top-0 w-full z-[1000] px-6 py-4 flex justify-between items-center backdrop-blur-md bg-gray-900/80 border-b border-gray-800/50">
