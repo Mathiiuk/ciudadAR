@@ -4,20 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import App from './App.jsx'
 import './index.css'
-
-// Limpiamos la configuración interna de Leaflet para evitar conflictos con Vite/Vercel
-import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <AuthProvider>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </AuthProvider>
-  </StrictMode>,
-)
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

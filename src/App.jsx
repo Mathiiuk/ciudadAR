@@ -2,6 +2,8 @@ import { Routes, Route } from 'react-router-dom'
 import Login from './pages/Login'
 import MapDashboard from './pages/MapDashboard'
 import AdminPanel from './pages/AdminPanel'
+import UserProfile from './pages/UserProfile'
+import History from './pages/History'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
@@ -9,18 +11,17 @@ function App() {
     <Routes>
       <Route path="/" element={<Login />} />
       
-      {/* Vistas protegidas estándar para cualquier usuario logeado */}
       <Route path="/map" element={
-        <ProtectedRoute>
-          <MapDashboard />
-        </ProtectedRoute>
+        <ProtectedRoute><MapDashboard /></ProtectedRoute>
       } />
-      
-      {/* Vista altamente protegida: Únicamente pasas si rol === 'oficial' */}
+      <Route path="/profile" element={
+        <ProtectedRoute><UserProfile /></ProtectedRoute>
+      } />
+      <Route path="/history" element={
+        <ProtectedRoute><History /></ProtectedRoute>
+      } />
       <Route path="/admin" element={
-        <ProtectedRoute reqRole="oficial">
-          <AdminPanel />
-        </ProtectedRoute>
+        <ProtectedRoute reqRole="oficial"><AdminPanel /></ProtectedRoute>
       } />
     </Routes>
   )
