@@ -35,10 +35,10 @@ const createPulseIcon = () => {
   })
 }
 
-// Icono por defecto (Maneja Leaflet defaults en vite)
+// Icono por defecto usando CDN para asegurar carga en Vercel/Producción
 const defaultIcon = new L.Icon({
-  iconUrl: '/leaflet/marker-icon.png',
-  shadowUrl: '/leaflet/marker-shadow.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
   iconSize: [25, 41],
   iconAnchor: [12, 41]
 })
