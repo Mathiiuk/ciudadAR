@@ -13,27 +13,45 @@ export const AuthProvider = ({ children }) => {
 
     const getProfile = async (userId) => {
       try {
-        const { data } = await supabase.from('profiles').select('role').eq('id', userId).single()
-        if (mounted && data) setRole(data.role)
+        console.log("Buscando perfil para:", userId)
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', userId)
+          .single()
+        
+        if (error) {
+          console.warn("Perfil no encontrado o error:", error.message)
+          return
+        }
+
+        if (mounted && data) {
+          console.log("Rol detectado:", data.role)
+          setRole(data.role)
+        }
       } catch (e) {
-        console.error("Error fetching role:", e)
+        console.error("Excepción al buscar rol:", e)
       }
     }
 
-    // Usamos onAuthStateChange que se dispara automáticamente al inicio (INITIAL_SESSION)
-    // y en cada login/logout. Es más robusto que mezclar getSession manual.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth Event:", event)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("Evento Auth Detectado:", event)
+      
       if (session?.user) {
-        if (mounted) setUser(session.user)
-        await getProfile(session.user.id)
+        if (mounted) {
+          setUser(session.user)
+          // Ya no ponemos await aquí. Dejamos que cargue el usuario rápido
+          // y el perfil se busque en segundo plano.
+          getProfile(session.user.id)
+          setLoading(false) // <--- CRÍTICO: Dejamos de bloquear la app
+        }
       } else {
         if (mounted) {
           setUser(null)
           setRole(null)
+          setLoading(false)
         }
       }
-      if (mounted) setLoading(false)
     })
 
     return () => {
