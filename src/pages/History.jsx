@@ -20,6 +20,7 @@ export default function History() {
   const [offlineReports, setOfflineReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
+  const [selectedReport, setSelectedReport] = useState(null)
 
   useEffect(() => {
     if (!user) return
@@ -161,7 +162,11 @@ export default function History() {
             {reports.map(report => {
               const st = STATUS_CONFIG[report.status] || STATUS_CONFIG['pendiente']
               return (
-                <div key={report.id} className="flex gap-3 bg-gray-800/60 border border-gray-700/50 rounded-2xl overflow-hidden active:scale-[0.99] transition">
+                <div 
+                  key={report.id} 
+                  onClick={() => setSelectedReport(report)}
+                  className="flex gap-3 bg-gray-800/60 border border-gray-700/50 rounded-2xl overflow-hidden active:scale-[0.99] transition cursor-pointer"
+                >
                   {/* Miniatura */}
                   <div className="w-24 h-24 flex-shrink-0 bg-gray-700">
                     <img
@@ -196,6 +201,76 @@ export default function History() {
           </div>
         )}
       </div>
+
+      {/* Modal de Detalle Expandido */}
+      {selectedReport && (
+        <div className="fixed inset-0 z-[2000] flex flex-col bg-gray-900 animate-slide-up">
+          <div className="flex justify-between items-center p-4 border-b border-gray-800">
+            <button 
+              onClick={() => setSelectedReport(null)}
+              className="p-2 text-gray-400 hover:text-white bg-gray-800 rounded-full"
+            >
+              <ArrowLeft className="w-6 h-6" />
+            </button>
+            <h2 className="font-bold">Detalle del Reporte</h2>
+            <div className="w-10" />
+          </div>
+
+          <div className="flex-1 overflow-y-auto no-scrollbar">
+            <div className="w-full aspect-video bg-black flex items-center justify-center">
+              <img 
+                src={selectedReport.image_url} 
+                alt={selectedReport.type}
+                className="max-h-full object-contain"
+              />
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="flex justify-between items-start">
+                <div>
+                  <span className={`inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-bold border px-3 py-1 rounded-full mb-3 ${STATUS_CONFIG[selectedReport.status]?.color}`}>
+                    {STATUS_CONFIG[selectedReport.status]?.icon} {STATUS_CONFIG[selectedReport.status]?.label}
+                  </span>
+                  <h1 className="text-2xl font-black text-white leading-tight">{selectedReport.type}</h1>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="bg-gray-800/40 border border-gray-700/30 p-4 rounded-2xl">
+                  <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">Descripción / Detalles</p>
+                  <p className="text-white text-sm leading-relaxed">
+                    {selectedReport.description || "Sin descripción proporcionada."}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-gray-800/40 border border-gray-700/30 p-4 rounded-2xl">
+                    <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">Fecha</p>
+                    <p className="text-white text-sm font-bold">
+                      {new Date(selectedReport.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="bg-gray-800/40 border border-gray-700/30 p-4 rounded-2xl">
+                    <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">ID</p>
+                    <p className="text-white text-xs font-mono opacity-60">
+                      #{selectedReport.id.slice(0, 8)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 bg-gray-900 border-t border-gray-800">
+             <button 
+                onClick={() => setSelectedReport(null)}
+                className="w-full bg-blue-600 py-4 rounded-2xl font-bold text-white shadow-lg shadow-blue-600/30 active:scale-95 transition-transform"
+             >
+                Cerrar Detalle
+             </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

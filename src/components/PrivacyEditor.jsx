@@ -36,16 +36,18 @@ export default function PrivacyEditor({ imageBlob, onConfirm, onCancel }) {
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
 
         try {
+          console.log("Iniciando detección de caras...");
           // Detección automática inicial
           const faces = await detectFaces(img)
+          console.log(`Caras detectadas: ${faces?.length || 0}`);
           
           if (faces && faces.length > 0) {
             faces.forEach(face => {
               const { originX, originY, width, height } = face.boundingBox
-              applyBlur(ctx, originX * scale, originY * scale, width * scale, height * scale)
+              applyBlur(ctx, img, originX * scale, originY * scale, width * scale, height * scale)
             });
+            setHasDetected(true)
           }
-          setHasDetected(true)
         } catch (error) {
           console.error("AI Detection error:", error)
         } finally {
@@ -58,13 +60,16 @@ export default function PrivacyEditor({ imageBlob, onConfirm, onCancel }) {
     loadImage()
   }, [imageBlob])
 
-  const applyBlur = (ctx, x, y, w, h) => {
+  const applyBlur = (ctx, originalImg, x, y, w, h) => {
     ctx.save()
+    // Definir área de recorte
     ctx.beginPath()
     ctx.rect(x, y, w, h)
     ctx.clip()
-    ctx.filter = 'blur(20px)'
-    ctx.drawImage(ctx.canvas, 0, 0)
+    
+    // Aplicar desenfoque dibujando la fuente original con filtro
+    ctx.filter = 'blur(25px)'
+    ctx.drawImage(originalImg, 0, 0, ctx.canvas.width, ctx.canvas.height)
     ctx.restore()
   }
 
