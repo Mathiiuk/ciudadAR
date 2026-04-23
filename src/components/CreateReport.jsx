@@ -1,11 +1,12 @@
 import { useState, useRef } from 'react'
-import { Camera, X, MapPin, Send, Loader2 } from 'lucide-react'
+import { Camera, X, MapPin, Send, Loader2, ShieldCheck, ShieldAlert } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { useGeolocation } from '../hooks/useGeolocation'
 import { processImageToWebP } from '../utils/imageOptimizer'
 import PrivacyEditor from './PrivacyEditor'
 import { saveInfractionOffline } from '../utils/offlineStore'
+import { verifyInfractionImage } from '../utils/verifyInfractionWithAI'
 
 export default function CreateReport({ onClose }) {
   const { user } = useAuth()
@@ -16,9 +17,12 @@ export default function CreateReport({ onClose }) {
   const [type, setType] = useState('Mal Estacionamiento')
   const [description, setDescription] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [verifyResult, setVerifyResult] = useState(null) // {valid, reason}
   const [uploadError, setUploadError] = useState(null)
   const [showPrivacyEditor, setShowPrivacyEditor] = useState(false)
   const [rawImage, setRawImage] = useState(null)
+  const [honeypot, setHoneypot] = useState('') // Campo trampa para bots
   
   const fileInputRef = useRef(null)
 
@@ -34,6 +38,7 @@ export default function CreateReport({ onClose }) {
     setShowPrivacyEditor(false)
     setImagePreview(URL.createObjectURL(blurredBlob))
     setImageFile(blurredBlob)
+    setVerifyResult(null) // Reset verificación al cambiar foto
   }
 
   const handleSubmit = async (e) => {
@@ -42,8 +47,49 @@ export default function CreateReport({ onClose }) {
     if (!imageFile) return setUploadError("Debes tomar una foto de la infracción.")
     if (!user) return setUploadError("Sesión de usuario no válida.")
     
+    // 🛡️ SEGURIDAD CAPA 1: Honeypot (Trampa para bots)
+    if (honeypot.length > 0) return setUploadError("Actividad sospechosa detectada.")
+
     setIsSubmitting(true)
     setUploadError(null)
+    setVerifyResult(null)
+
+    // 🛡️ SEGURIDAD CAPA 2: Límite diario (Protección de Tokens)
+    // En modo Desarrollo (VITE DEV) desactivamos el límite para que puedas testear
+    if (!import.meta.env.DEV) {
+      try {
+        const today = new Date().toISOString().split('T')[0]
+        const { count, error: countError } = await supabase
+          .from('infractions')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .gte('created_at', today)
+
+        if (countError) throw countError
+        if (count >= 10) { // Límite de 10 reportes por día solo en Producción
+          setUploadError("⚠️ Has alcanzado el límite diario (10 reportes). Protegemos la comunidad evitando flood.")
+          setIsSubmitting(false)
+          return
+        }
+      } catch (err) {
+        console.warn("No se pudo verificar el límite diario, procediendo con cautela...")
+      }
+    }
+
+    // 🛡️ SEGURIDAD CAPA 3: Sanitización XSS (Eliminar etiquetas HTML)
+    const sanitizedDescription = description.replace(/<[^>]*>?/gm, '').trim()
+
+    // ─── Verificación IA (Gemini Vision) ──────────────────────────
+    setIsVerifying(true)
+    const verification = await verifyInfractionImage(imageFile, type)
+    setIsVerifying(false)
+    setVerifyResult(verification)
+
+    if (!verification.valid) {
+      setUploadError(`⚠️ La foto no coincide con el tipo de infracción seleccionada. ${verification.reason}`)
+      setIsSubmitting(false)
+      return
+    }
 
     // Modo Offline
     if (!navigator.onLine) {
@@ -51,10 +97,11 @@ export default function CreateReport({ onClose }) {
         await saveInfractionOffline({
           user_id: user.id,
           type: type,
-          description: description,
-          image_blob: imageFile, // Guardamos el blob directamente en IndexedDB
+          description: sanitizedDescription,
+          image_blob: imageFile, 
           lat: position.lat,
-          lng: position.lng
+          lng: position.lng,
+          status: verifyResult?.valid ? 'aprobada' : 'pendiente'
         })
         
         alert("¡Conexión perdida! Tu reporte se ha guardado localmente y se subirá cuando recuperes la señal.")
@@ -92,8 +139,8 @@ export default function CreateReport({ onClose }) {
         location: ewktPoint,
         image_url: publicUrlData.publicUrl,
         type: type,
-        description: description,
-        status: 'pendiente',
+        description: sanitizedDescription,
+        status: verifyResult?.valid ? 'aprobada' : 'pendiente',
       }])
 
       if (dbError) throw dbError
@@ -207,6 +254,17 @@ export default function CreateReport({ onClose }) {
               />
             </div>
 
+            {/* Honeypot: Invisible para humanos, trampa para bots */}
+            <div className="opacity-0 absolute -z-10 h-0 w-0 overflow-hidden">
+              <input 
+                type="text" 
+                value={honeypot} 
+                onChange={(e) => setHoneypot(e.target.value)} 
+                tabIndex="-1" 
+                autoComplete="off" 
+              />
+            </div>
+
             {uploadError && (
               <div className="bg-red-500/20 text-red-500 font-medium text-sm p-3 rounded-lg text-center border border-red-500/20">
                 {uploadError}
@@ -215,16 +273,20 @@ export default function CreateReport({ onClose }) {
 
             <button
               type="submit"
-              disabled={isSubmitting || !position || !imageFile}
-              className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:active:scale-100 flex justify-center items-center gap-2 text-white font-semibold py-4 rounded-xl shadow-lg shadow-blue-600/30 transition-all active:scale-[0.98]"
+              disabled={isSubmitting}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800/50 disabled:cursor-not-allowed text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg shadow-blue-900/20"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="w-5 h-5 animate-spin" /> Cifrando y enviando...
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>
+                    {isVerifying ? "Analizando evidencia con IA..." : "Generando Acta de Reporte..."}
+                  </span>
                 </>
               ) : (
                 <>
-                  <Send className="w-5 h-5" /> Generar Acta de Reporte
+                  <Send size={20} />
+                  <span>Generar Acta de Reporte</span>
                 </>
               )}
             </button>
