@@ -1,130 +1,107 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertCircle, Loader2 } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
-import { useAuth } from '../context/AuthContext'
+import { Shield, Mail, Lock, Loader2, ArrowRight } from 'lucide-react'
 
 export default function Login() {
-  const navigate = useNavigate()
-  const { user, loading: authLoading } = useAuth() // Consumimos el estado global de auth
-
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [isRegistering, setIsRegistering] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [errorMsg, setErrorMsg] = useState(null)
+  const [error, setError] = useState(null)
+  const navigate = useNavigate()
 
-  // SI EL CONTEXTO DICE QUE YA ESTAMOS LOGUEADOS, IR AL MAPA DIRECTO
-  useEffect(() => {
-    if (user && !authLoading) {
-      console.log("Sesión detectada desde Context, redirigiendo a /map...")
-      navigate('/map', { replace: true })
-    }
-  }, [user, authLoading, navigate])
-
-  const handleAuth = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault()
     setLoading(true)
-    setErrorMsg(null)
-
-    try {
-      console.log("Iniciando intento de login para:", email)
-      if (isRegistering) {
-        // Sign up flow
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password
-        })
-        
-        if (error) throw error
-
-        if (data?.user) {
-          console.log("Usuario creado, insertando perfil...")
-          const { error: profileError } = await supabase.from('profiles').upsert([{
-            id: data.user.id,
-            username: email.split('@')[0] + Math.floor(Math.random() * 1000),
-            full_name: email.split('@')[0],
-            role: 'ciudadano'
-          }])
-
-          if (profileError) throw profileError
-          console.log("Perfil creado exitosamente")
-          navigate('/map')
-        }
-      } else {
-        // Sign in flow
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        })
-        
-        if (error) throw error
-        console.log("Login exitoso, redirigiendo...", data.user.id)
-        navigate('/map')
-      }
-    } catch (err) {
-      console.error("Error en handleAuth:", err.message)
-      setErrorMsg(err.message)
-    } finally {
-      setLoading(false)
-    }
+    setError(null)
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) setError(error.message)
+    else navigate('/map')
+    setLoading(false)
   }
 
   return (
-    <div className="w-screen h-screen flex flex-col justify-center items-center bg-gray-900 bg-gradient-to-br from-gray-900 to-black px-6">
-      <div className="w-full max-w-sm flex flex-col items-center">
-        <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center mb-8 shadow-2xl shadow-blue-500/20">
-          <AlertCircle className="w-10 h-10 text-white" />
-        </div>
+    <div className="relative min-h-screen flex items-center justify-center p-6 bg-[#020617] overflow-hidden">
+      
+      {/* 🌌 Fondo Decorativo Animado */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/20 rounded-full blur-[120px] animate-pulse" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-indigo-600/10 rounded-full blur-[150px] animate-float" />
+
+      <div className="w-full max-w-md relative z-10">
         
-        <h1 className="text-3xl font-bold text-white mb-2 text-center tracking-tight">CiudadAR</h1>
-        <p className="text-gray-400 mb-8 text-center text-sm">Registro Seguro de Infracciones</p>
-
-        {errorMsg && (
-          <div className="w-full bg-red-500/20 text-red-300 text-sm p-3 rounded-lg text-center border border-red-500/30 mb-4 animate-pulse">
-            {errorMsg}
+        {/* Logo & Header */}
+        <div className="flex flex-col items-center mb-10">
+          <div className="w-20 h-20 bg-blue-600 rounded-[28px] flex items-center justify-center mb-6 blue-glow animate-float shadow-2xl">
+            <Shield className="w-10 h-10 text-white" />
           </div>
-        )}
+          <h1 className="text-4xl font-black text-center tracking-tighter text-white mb-2">
+            Ciudad<span className="text-blue-500">AR</span>
+          </h1>
+          <p className="text-slate-400 font-medium text-center text-sm tracking-wide uppercase">
+            Seguridad Vial Inteligente
+          </p>
+        </div>
 
-        <form onSubmit={handleAuth} className="w-full relative z-10">
-          <div className="mb-4 relative">
-            <input 
-              type="email" 
-              required
-              placeholder="Correo electrónico" 
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-gray-800/50 backdrop-blur-md border border-gray-700/50 text-white px-5 py-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-gray-500"
-            />
-          </div>
-          
-          <div className="mb-8 relative">
-            <input 
-              type="password" 
-              required
-              placeholder="Contraseña" 
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-              className="w-full bg-gray-800/50 backdrop-blur-md border border-gray-700/50 text-white px-5 py-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-gray-500"
-            />
-          </div>
+        {/* Login Card */}
+        <div className="glass-panel p-10 rounded-[32px] shadow-2xl">
+          <form onSubmit={handleLogin} className="space-y-6">
+            
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase font-black text-slate-500 tracking-[0.2em] ml-2">Email del Ciudadano</label>
+              <div className="relative group">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-blue-400 transition-colors" />
+                <input
+                  type="email"
+                  placeholder="ciudadano@ejemplo.com"
+                  className="w-full bg-slate-950/50 border border-white/5 focus:border-blue-500/50 rounded-2xl py-4 pl-12 pr-4 text-white placeholder:text-slate-700 outline-none transition-all"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
 
-          <button 
-            type="submit" 
-            disabled={loading}
-            className="w-full flex justify-center items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold py-4 rounded-xl shadow-lg shadow-blue-600/30 transition-all active:scale-[0.98] disabled:opacity-50"
-          >
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (isRegistering ? 'Crear Cuenta' : 'Ingresar')}
-          </button>
-        </form>
+            <div className="space-y-2">
+              <label className="text-[10px] uppercase font-black text-slate-500 tracking-[0.2em] ml-2">Contraseña</label>
+              <div className="relative group">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-blue-400 transition-colors" />
+                <input
+                  type="password"
+                  placeholder="••••••••"
+                  className="w-full bg-slate-950/50 border border-white/5 focus:border-blue-500/50 rounded-2xl py-4 pl-12 pr-4 text-white placeholder:text-slate-700 outline-none transition-all"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
 
-        <button 
-          onClick={() => { setIsRegistering(!isRegistering); setErrorMsg(null); }}
-          className="mt-6 text-sm text-blue-400 hover:text-blue-300 focus:outline-none"
-        >
-          {isRegistering ? '¿Ya tienes cuenta? Ingresa aquí' : '¿No tienes cuenta? Regístrate'}
-        </button>
+            {error && (
+              <div className="bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs py-3 px-4 rounded-xl font-bold animate-shake">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 shadow-xl shadow-blue-600/20 transition-all active:scale-95 disabled:opacity-50"
+            >
+              {loading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  <span>ACCEDER AL MAPA</span>
+                  <ArrowRight className="w-5 h-5" />
+                </>
+              )}
+            </button>
+          </form>
+        </div>
+
+        <p className="mt-8 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">
+          © 2026 CiudadAR | Versión 2.0
+        </p>
       </div>
     </div>
   )

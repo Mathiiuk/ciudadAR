@@ -1,16 +1,28 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Camera, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
+import { 
+  ArrowLeft, 
+  Camera, 
+  Clock, 
+  CheckCircle, 
+  XCircle, 
+  AlertCircle,
+  Wifi,
+  RefreshCcw,
+  Loader2,
+  Calendar,
+  MapPin,
+  ChevronRight
+} from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { getOfflineInfractions, deleteOfflineInfraction } from '../utils/offlineStore'
-import { Wifi, RefreshCcw, Loader2 } from 'lucide-react'
 
 const STATUS_CONFIG = {
-  pendiente:   { label: 'Pendiente',  color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', icon: <Clock className="w-3 h-3" /> },
-  aprobada:    { label: 'Aprobada',   color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', icon: <CheckCircle className="w-3 h-3" /> },
-  rechazada:   { label: 'Rechazada',  color: 'bg-red-500/20 text-red-400 border-red-500/30', icon: <XCircle className="w-3 h-3" /> },
-  en_revision: { label: 'En revisión',color: 'bg-blue-500/20 text-blue-400 border-blue-500/30', icon: <AlertCircle className="w-3 h-3" /> },
+  pendiente:   { label: 'Pendiente',  color: 'bg-amber-500/10 text-amber-500 border-amber-500/20', icon: <Clock className="w-3.5 h-3.5" /> },
+  aprobada:    { label: 'Aprobada',   color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20', icon: <CheckCircle className="w-3.5 h-3.5" /> },
+  rechazada:   { label: 'Rechazada',  color: 'bg-rose-500/10 text-rose-500 border-rose-500/20', icon: <XCircle className="w-3.5 h-3.5" /> },
+  en_revision: { label: 'Revisión',   color: 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20', icon: <AlertCircle className="w-3.5 h-3.5" /> },
 }
 
 export default function History() {
@@ -25,7 +37,6 @@ export default function History() {
   useEffect(() => {
     if (!user) return
     const fetchHistory = async () => {
-      // 1. Fetch de Supabase
       const { data, error } = await supabase
         .from('infractions')
         .select('id, type, description, status, image_url, created_at')
@@ -33,11 +44,8 @@ export default function History() {
         .order('created_at', { ascending: false })
 
       if (data) setReports(data)
-      
-      // 2. Fetch de Offline
       const localData = await getOfflineInfractions()
       setOfflineReports(localData)
-      
       setLoading(false)
     }
     fetchHistory()
@@ -46,24 +54,17 @@ export default function History() {
   const handleSync = async () => {
     if (isSyncing || offlineReports.length === 0) return
     setIsSyncing(true)
-
     try {
       for (const report of offlineReports) {
         const fileId = crypto.randomUUID()
         const fileName = `${fileId}.webp`
-
-        // 1. Subir imagen
         const { error: storageError } = await supabase.storage
           .from('evidencia-infracciones')
           .upload(fileName, report.image_blob, { contentType: 'image/webp' })
-
         if (storageError) throw storageError
-
         const { data: publicUrlData } = supabase.storage
           .from('evidencia-infracciones')
           .getPublicUrl(fileName)
-
-        // 2. Insertar en DB
         const ewktPoint = `POINT(${report.lng} ${report.lat})`
         const { error: dbError } = await supabase.from('infractions').insert([{
           user_id: report.user_id,
@@ -73,202 +74,187 @@ export default function History() {
           description: report.description,
           status: 'pendiente',
         }])
-
         if (dbError) throw dbError
-
-        // 3. Borrar de IndexedDB
         await deleteOfflineInfraction(report.id)
       }
-
-      // Recargar todo
       const localData = await getOfflineInfractions()
       setOfflineReports(localData)
-      
       const { data: freshReports } = await supabase
         .from('infractions')
         .select('id, type, description, status, image_url, created_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
       if (freshReports) setReports(freshReports)
-      
     } catch (error) {
       console.error("Sync error:", error)
-      alert("Error al sincronizar. Reintenta cuando tengas mejor señal.")
     } finally {
       setIsSyncing(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col overflow-y-auto no-scrollbar">
-      {/* Header */}
-      <div className="sticky top-0 z-10 flex items-center gap-3 px-5 py-4 backdrop-blur-md bg-gray-900/80 border-b border-gray-800/50">
-        <button onClick={() => navigate(-1)} className="p-2 rounded-xl bg-gray-800/60 hover:bg-gray-700 transition">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <div>
-          <h1 className="text-base font-bold tracking-tight">Historial</h1>
-          <p className="text-xs text-gray-400">Mis reportes enviados</p>
+    <div className="flex flex-col min-h-screen bg-[#0f172a]">
+      {/* Header Fijo */}
+      <header className="sticky top-0 z-[100] bg-[#0f172a]/80 backdrop-blur-xl border-b border-white/5 pt-12 pb-4 px-6 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => navigate(-1)} 
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 active:scale-95 transition"
+          >
+            <ArrowLeft className="w-5 h-5 text-slate-300" />
+          </button>
+          <div>
+            <h1 className="text-xl font-black text-white tracking-tight">Historial</h1>
+            <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Mis Reportes</p>
+          </div>
         </div>
-      </div>
+        <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+            <span className="text-[10px] font-bold text-slate-400">{reports.length}</span>
+        </div>
+      </header>
 
-      <div className="px-4 py-5 max-w-md mx-auto w-full">
-        {/* Banner Offline */}
+      {/* Area de Scroll Contenido */}
+      <main className="flex-1 px-6 pt-6 pb-20">
+        
+        {/* Banner Offline mejorado */}
         {offlineReports.length > 0 && (
-          <div className="mb-6 bg-blue-600 rounded-2xl p-4 shadow-lg shadow-blue-600/30 flex items-center justify-between animate-pulse">
-            <div className="flex items-center gap-3">
-              <div className="bg-white/20 p-2 rounded-full">
-                <Wifi className="w-5 h-5 text-white" />
-              </div>
-              <div className="text-white">
-                <p className="text-sm font-bold">{offlineReports.length} pendientes</p>
-                <p className="text-[10px] opacity-80">Reportes guardados offline</p>
-              </div>
+          <div className="mb-8 p-5 rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-700 shadow-2xl shadow-blue-500/20 relative overflow-hidden">
+            <div className="relative z-10">
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
+                        <Wifi className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                        <h4 className="text-sm font-black text-white">Reportes Offline</h4>
+                        <p className="text-[10px] text-blue-100 font-medium">Hay {offlineReports.length} actas pendientes de envío</p>
+                    </div>
+                </div>
+                <button 
+                    onClick={handleSync}
+                    disabled={isSyncing}
+                    className="w-full bg-white text-blue-600 py-3 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl active:scale-95 transition flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                    {isSyncing ? <Loader2 className="w-4 h-4 animate-spin"/> : <RefreshCcw className="w-4 h-4"/>}
+                    Sincronizar Ahora
+                </button>
             </div>
-            <button 
-              onClick={handleSync}
-              disabled={isSyncing || !navigator.onLine}
-              className="bg-white text-blue-600 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1 active:scale-95 transition-transform disabled:opacity-50"
-            >
-              {isSyncing ? <Loader2 className="w-3 h-3 animate-spin"/> : <RefreshCcw className="w-3 h-3"/>}
-              {navigator.onLine ? 'Sincronizar' : 'Esperando Red'}
-            </button>
+            <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full blur-2xl" />
           </div>
         )}
+
         {loading ? (
-          <div className="flex flex-col gap-4 mt-4">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-28 bg-gray-800/50 rounded-2xl animate-pulse" />
+          <div className="space-y-4">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="h-24 bg-white/5 border border-white/5 rounded-3xl animate-pulse" />
             ))}
           </div>
         ) : reports.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
-            <div className="w-20 h-20 rounded-full bg-gray-800 flex items-center justify-center">
-              <Camera className="w-9 h-9 text-gray-600" />
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-16 h-16 rounded-3xl bg-slate-800/50 flex items-center justify-center mb-6 border border-white/5">
+              <Camera className="w-7 h-7 text-slate-600" />
             </div>
-            <h2 className="text-lg font-bold text-white">Aún no hay reportes</h2>
-            <p className="text-sm text-gray-400 max-w-[220px]">
-              Usa el botón "+" en el mapa para registrar tu primera infracción vial.
-            </p>
-            <button
-              onClick={() => navigate('/map')}
-              className="mt-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm px-6 py-3 rounded-xl transition"
-            >
-              Ir al Mapa
-            </button>
+            <h3 className="text-slate-400 font-bold mb-2">Sin actividad aún</h3>
+            <p className="text-slate-500 text-xs max-w-[200px] leading-relaxed">Tus reportes aparecerán aquí después de enviarlos al mapa.</p>
           </div>
         ) : (
-          <div className="flex flex-col gap-3 mt-2">
-            {reports.map(report => {
+          <div className="space-y-4">
+            {reports.map((report, idx) => {
               const st = STATUS_CONFIG[report.status] || STATUS_CONFIG['pendiente']
               return (
                 <div 
-                  key={report.id} 
+                  key={report.id}
                   onClick={() => setSelectedReport(report)}
-                  className="flex gap-3 bg-gray-800/60 border border-gray-700/50 rounded-2xl overflow-hidden active:scale-[0.99] transition cursor-pointer"
+                  className="group relative bg-[#1e293b]/50 border border-white/5 rounded-3xl p-3 flex gap-4 active:scale-[0.98] transition-all hover:bg-white/5"
                 >
-                  {/* Miniatura */}
-                  <div className="w-24 h-24 flex-shrink-0 bg-gray-700">
-                    <img
-                      src={report.image_url}
-                      alt={report.type}
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="w-20 h-20 rounded-2xl overflow-hidden shrink-0 border border-white/10">
+                    <img src={report.image_url} className="w-full h-full object-cover" alt="" />
                   </div>
-
-                  {/* Info */}
-                  <div className="flex-1 py-3 pr-3 flex flex-col justify-between">
+                  <div className="flex-1 py-1 flex flex-col justify-between overflow-hidden">
                     <div>
-                      <p className="text-sm font-bold text-white leading-tight">{report.type}</p>
-                      {report.description && (
-                        <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{report.description}</p>
-                      )}
+                        <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] text-slate-500 font-mono">#{report.id.slice(0, 6)}</span>
+                            <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${st.color}`}>
+                                {st.icon} {st.label}
+                            </span>
+                        </div>
+                        <h4 className="text-sm font-bold text-slate-200 truncate">{report.type}</h4>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-gray-500">
-                        {new Date(report.created_at).toLocaleDateString('es-AR', {
-                          day: '2-digit', month: 'short', year: 'numeric'
-                        })}
-                      </span>
-                      <span className={`inline-flex items-center gap-1 text-[10px] font-bold border px-2 py-0.5 rounded-full ${st.color}`}>
-                        {st.icon} {st.label}
-                      </span>
+                    <div className="flex items-center gap-2 text-slate-500 text-[10px]">
+                        <Calendar className="w-3 h-3" />
+                        <span>{new Date(report.created_at).toLocaleDateString()}</span>
                     </div>
+                  </div>
+                  <div className="flex items-center pr-1">
+                    <ChevronRight className="w-5 h-5 text-slate-700 group-hover:text-slate-500 transition" />
                   </div>
                 </div>
               )
             })}
           </div>
         )}
-      </div>
+      </main>
 
-      {/* Modal de Detalle Expandido */}
+      {/* Detalle Expandido Premium */}
       {selectedReport && (
-        <div className="fixed inset-0 z-[2000] flex flex-col bg-gray-900 animate-slide-up">
-          <div className="flex justify-between items-center p-4 border-b border-gray-800">
-            <button 
-              onClick={() => setSelectedReport(null)}
-              className="p-2 text-gray-400 hover:text-white bg-gray-800 rounded-full"
-            >
-              <ArrowLeft className="w-6 h-6" />
-            </button>
-            <h2 className="font-bold">Detalle del Reporte</h2>
-            <div className="w-10" />
-          </div>
-
-          <div className="flex-1 overflow-y-auto no-scrollbar">
-            <div className="w-full aspect-video bg-black flex items-center justify-center">
-              <img 
-                src={selectedReport.image_url} 
-                alt={selectedReport.type}
-                className="max-h-full object-contain"
-              />
+        <div className="fixed inset-0 z-[2000] bg-[#0f172a] flex flex-col animate-slide-up">
+            <div className="flex justify-between items-center px-6 py-12 shrink-0">
+                <button onClick={() => setSelectedReport(null)} className="p-3 bg-white/5 rounded-2xl active:scale-90 transition">
+                    <ArrowLeft className="w-6 h-6 text-slate-400" />
+                </button>
+                <h3 className="font-black text-slate-400 tracking-widest uppercase text-[10px]">Detalle de Infracción</h3>
+                <div className="w-12" />
             </div>
 
-            <div className="p-6 space-y-6">
-              <div className="flex justify-between items-start">
-                <div>
-                  <span className={`inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-bold border px-3 py-1 rounded-full mb-3 ${STATUS_CONFIG[selectedReport.status]?.color}`}>
-                    {STATUS_CONFIG[selectedReport.status]?.icon} {STATUS_CONFIG[selectedReport.status]?.label}
-                  </span>
-                  <h1 className="text-2xl font-black text-white leading-tight">{selectedReport.type}</h1>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="bg-gray-800/40 border border-gray-700/30 p-4 rounded-2xl">
-                  <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">Descripción / Detalles</p>
-                  <p className="text-white text-sm leading-relaxed">
-                    {selectedReport.description || "Sin descripción proporcionada."}
-                  </p>
+            <div className="flex-1 overflow-y-auto px-6 space-y-8 pb-10">
+                <div className="w-full aspect-square rounded-[40px] overflow-hidden shadow-2xl border border-white/10">
+                    <img src={selectedReport.image_url} className="w-full h-full object-cover" alt="" />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-gray-800/40 border border-gray-700/30 p-4 rounded-2xl">
-                    <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">Fecha</p>
-                    <p className="text-white text-sm font-bold">
-                      {new Date(selectedReport.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div className="bg-gray-800/40 border border-gray-700/30 p-4 rounded-2xl">
-                    <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">ID</p>
-                    <p className="text-white text-xs font-mono opacity-60">
-                      #{selectedReport.id.slice(0, 8)}
-                    </p>
-                  </div>
+                <div className="space-y-6">
+                    <div>
+                        <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-white/5 mb-4 ${STATUS_CONFIG[selectedReport.status]?.color}`}>
+                            {STATUS_CONFIG[selectedReport.status]?.icon} {STATUS_CONFIG[selectedReport.status]?.label}
+                        </span>
+                        <h2 className="text-3xl font-black text-white leading-none">{selectedReport.type}</h2>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div className="p-6 bg-white/5 border border-white/5 rounded-[32px]">
+                            <h5 className="text-[10px] uppercase font-black text-slate-500 tracking-widest mb-3">Evidencia Capturada</h5>
+                            <p className="text-sm text-slate-300 leading-relaxed italic">
+                                "{selectedReport.description || 'Sin comentarios adicionales.'}"
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="p-5 bg-white/5 border border-white/5 rounded-[28px] flex items-center gap-3">
+                                <div className="p-2 bg-slate-800 rounded-xl"><Calendar className="w-4 h-4 text-blue-400" /></div>
+                                <div>
+                                    <p className="text-[8px] uppercase tracking-widest text-slate-500 font-black">Fecha</p>
+                                    <p className="text-[11px] font-bold text-slate-300">{new Date(selectedReport.created_at).toLocaleDateString()}</p>
+                                </div>
+                            </div>
+                            <div className="p-5 bg-white/5 border border-white/5 rounded-[28px] flex items-center gap-3">
+                                <div className="p-2 bg-slate-800 rounded-xl"><MapPin className="w-4 h-4 text-emerald-400" /></div>
+                                <div>
+                                    <p className="text-[8px] uppercase tracking-widest text-slate-500 font-black">Ubicación</p>
+                                    <p className="text-[11px] font-bold text-slate-300">Buenos Aires, AR</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-              </div>
             </div>
-          </div>
 
-          <div className="p-6 bg-gray-900 border-t border-gray-800">
-             <button 
-                onClick={() => setSelectedReport(null)}
-                className="w-full bg-blue-600 py-4 rounded-2xl font-bold text-white shadow-lg shadow-blue-600/30 active:scale-95 transition-transform"
-             >
-                Cerrar Detalle
-             </button>
-          </div>
+            <div className="p-6 pb-12 bg-gradient-to-t from-[#0f172a] via-[#0f172a] to-transparent">
+                <button 
+                  onClick={() => setSelectedReport(null)}
+                  className="w-full bg-slate-800 hover:bg-slate-700 py-5 rounded-3xl font-black text-slate-300 tracking-widest uppercase text-xs transition active:scale-95"
+                >
+                    Cerrar Informe
+                </button>
+            </div>
         </div>
       )}
     </div>
