@@ -2,34 +2,28 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabaseClient'
 
 export function useInfractions() {
-  const [data, setData] = useState({ type: 'FeatureCollection', features: [] })
+  const [data, setData] = useState([]) // 👈 Ahora es un Array directo
   const [loading, setLoading] = useState(false)
   const [newMarkerIds, setNewMarkerIds] = useState([])
 
-  const featuresCache = useRef(new Map())
   const lastMapState = useRef({ lat: -34.6037, lng: -58.3816, radius: 10000 })
   const debounceTimer = useRef(null)
 
-  const fetchNearby = useCallback(async (lat, lng, radius) => {
+  const fetchInfractions = useCallback(async () => {
     setLoading(true)
     try {
-      const { data: geoJsonData, error } = await supabase.rpc('get_infractions_nearby', {
-        p_lat: lat,
-        p_lng: lng,
-        p_radius_meters: radius
-      })
+      // Consulta estándar sin necesidad de RPC
+      const { data: infractions, error } = await supabase
+        .from('infractions')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100)
       
       if (error) throw error
+      if (infractions) setData(infractions)
 
-      if (geoJsonData?.features) {
-        geoJsonData.features.forEach(f => featuresCache.current.set(f.properties.id, f))
-        setData({
-          type: 'FeatureCollection',
-          features: Array.from(featuresCache.current.values())
-        })
-      }
     } catch (error) {
-      console.error("Fetch RPC Localizado Falló:", error.message)
+      console.error("Error cargando infracciones:", error.message)
     } finally {
       setLoading(false)
     }
@@ -40,14 +34,13 @@ export function useInfractions() {
     if (debounceTimer.current) clearTimeout(debounceTimer.current)
     
     debounceTimer.current = setTimeout(() => {
-      fetchNearby(lat, lng, radius)
-    }, 500)
-  }, [fetchNearby])
+      fetchInfractions()
+    }, 1000)
+  }, [fetchInfractions])
 
   // Setup Real-time
   useEffect(() => {
-    // Initial fetch
-    fetchNearby(lastMapState.current.lat, lastMapState.current.lng, lastMapState.current.radius)
+    fetchInfractions()
 
     const channel = supabase
       .channel('public:infractions')
@@ -56,8 +49,7 @@ export function useInfractions() {
         { event: 'INSERT', schema: 'public', table: 'infractions' },
         (payload) => {
           setNewMarkerIds(prev => [...prev, payload.new.id])
-          fetchNearby(lastMapState.current.lat, lastMapState.current.lng, lastMapState.current.radius)
-          
+          fetchInfractions()
           setTimeout(() => {
             setNewMarkerIds(prev => prev.filter(id => id !== payload.new.id))
           }, 5000)
@@ -66,11 +58,7 @@ export function useInfractions() {
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'infractions' },
-        (payload) => {
-           if (featuresCache.current.has(payload.new.id)) {
-              fetchNearby(lastMapState.current.lat, lastMapState.current.lng, lastMapState.current.radius)
-           }
-        }
+        () => fetchInfractions()
       )
       .subscribe()
 
@@ -78,7 +66,7 @@ export function useInfractions() {
       supabase.removeChannel(channel)
       if (debounceTimer.current) clearTimeout(debounceTimer.current)
     }
-  }, [fetchNearby])
+  }, [fetchInfractions])
 
   return { data, loading, newMarkerIds, handleMapChange }
 }

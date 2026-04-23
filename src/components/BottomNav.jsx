@@ -1,42 +1,47 @@
-import { Home, Map as MapIcon, History, UserCircle2 } from 'lucide-react'
+import { Map as MapIcon, History, Shield } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
-const NAV_ITEMS = [
-  { label: 'Inicio', icon: Home, path: '/' },
-  { label: 'Mapa',   icon: MapIcon, path: '/map' },
-  { label: 'Historial', icon: History, path: '/history' },
-  { label: 'Perfil', icon: UserCircle2, path: '/profile' },
-]
-
-export default function BottomNav() {
+export default function BottomNav({ onReportClick }) {
   const location = useLocation()
   const navigate = useNavigate()
 
   return (
-    <nav className="absolute bottom-0 w-full z-[1000] pb-6 pt-3 px-2 backdrop-blur-xl bg-gray-900/85 border-t border-gray-800/80 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
-      <ul className="flex justify-around items-center max-w-sm mx-auto">
-        {NAV_ITEMS.map(({ label, icon: Icon, path }) => {
-          const active = location.pathname === path
-          return (
-            <li key={path}>
-              <button 
-                onClick={() => navigate(path)} 
-                className={`flex flex-col items-center gap-1 transition-all p-2 rounded-xl active:scale-90 ${
-                  active ? 'text-blue-500' : 'text-gray-400 hover:text-gray-200'
-                }`}
-              >
-                <Icon className={`w-6 h-6 transition-transform ${active ? 'scale-110' : ''}`} />
-                <span className={`text-[10px] font-medium tracking-wide ${active ? 'font-bold' : ''}`}>
-                  {label}
-                </span>
-                {active && (
-                  <span className="w-1 h-1 rounded-full bg-blue-500 -mt-0.5" />
-                )}
-              </button>
-            </li>
-          )
-        })}
-      </ul>
-    </nav>
+    <div className="fixed bottom-6 left-0 right-0 z-[2000] px-6 pointer-events-none">
+      <nav className="pointer-events-auto max-w-sm mx-auto bg-slate-900/95 backdrop-blur-2xl rounded-[35px] p-2 flex items-center justify-between border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.8)]">
+        
+        {/* Mapa */}
+        <button 
+          onClick={() => navigate('/map')}
+          className={`flex-1 flex flex-col items-center gap-1.5 p-4 rounded-3xl transition-all ${location.pathname === '/map' ? 'text-blue-500' : 'text-slate-500'}`}
+        >
+          <MapIcon className="w-6 h-6" />
+          <span className="text-[9px] font-black uppercase tracking-widest leading-none">Mapa</span>
+        </button>
+
+        {/* 🛡️ BOTÓN DE ACCIÓN CENTRAL (REPORTAR) */}
+        <div className="relative translate-y-[-24px]">
+            <button 
+                onClick={onReportClick}
+                className="w-16 h-16 bg-blue-600 rounded-[22px] flex items-center justify-center blue-glow shadow-2xl active:scale-90 transition-transform relative group"
+            >
+                <Shield className="w-8 h-8 text-white group-hover:scale-110 transition-transform" />
+                <div className="absolute inset-0 bg-white/20 rounded-[22px] animate-pulse pointer-events-none" />
+                
+                {/* Tooltip o mini tag */}
+                <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-[8px] font-black uppercase tracking-[0.2em] text-blue-400 whitespace-nowrap">Reportar</span>
+            </button>
+        </div>
+
+        {/* Historial */}
+        <button 
+          onClick={() => navigate('/history')}
+          className={`flex-1 flex flex-col items-center gap-1.5 p-4 rounded-3xl transition-all ${location.pathname === '/history' ? 'text-blue-500' : 'text-slate-500'}`}
+        >
+          <History className="w-6 h-6" />
+          <span className="text-[9px] font-black uppercase tracking-widest leading-none">Historial</span>
+        </button>
+
+      </nav>
+    </div>
   )
 }
