@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { useGeolocation } from '../hooks/useGeolocation'
 import { processImageToWebP } from '../utils/imageOptimizer'
 import PrivacyEditor from './PrivacyEditor'
+import { saveInfractionOffline } from '../utils/offlineStore'
 
 export default function CreateReport({ onClose }) {
   const { user } = useAuth()
@@ -43,6 +44,28 @@ export default function CreateReport({ onClose }) {
     
     setIsSubmitting(true)
     setUploadError(null)
+
+    // Modo Offline
+    if (!navigator.onLine) {
+      try {
+        await saveInfractionOffline({
+          user_id: user.id,
+          type: type,
+          description: description,
+          image_blob: imageFile, // Guardamos el blob directamente en IndexedDB
+          lat: position.lat,
+          lng: position.lng
+        })
+        
+        alert("¡Conexión perdida! Tu reporte se ha guardado localmente y se subirá cuando recuperes la señal.")
+        onClose()
+        return
+      } catch (err) {
+        setUploadError("Error al guardar reporte offline: " + err.message)
+        setIsSubmitting(false)
+        return
+      }
+    }
 
     try {
       const fileId = crypto.randomUUID()
