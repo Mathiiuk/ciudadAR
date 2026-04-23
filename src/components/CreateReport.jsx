@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { useGeolocation } from '../hooks/useGeolocation'
 import { processImageToWebP } from '../utils/imageOptimizer'
+import PrivacyEditor from './PrivacyEditor'
+import { saveInfractionOffline } from '../utils/offlineStore'
 
 export default function CreateReport({ onClose }) {
   const { user } = useAuth()
@@ -15,6 +17,8 @@ export default function CreateReport({ onClose }) {
   const [description, setDescription] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [uploadError, setUploadError] = useState(null)
+  const [showPrivacyEditor, setShowPrivacyEditor] = useState(false)
+  const [rawImage, setRawImage] = useState(null)
   
   const fileInputRef = useRef(null)
 
@@ -22,16 +26,14 @@ export default function CreateReport({ onClose }) {
     const file = e.target.files[0]
     if (!file) return
 
-    // Show instant preview 
-    setImagePreview(URL.createObjectURL(file))
-    
-    // Compress in background using external Utils layer
-    try {
-      const compressedBlob = await processImageToWebP(file)
-      setImageFile(compressedBlob)
-    } catch (err) {
-      setUploadError("Fallo al procesar imagen: " + err)
-    }
+    setRawImage(file)
+    setShowPrivacyEditor(true)
+  }
+
+  const handlePrivacyConfirm = async (blurredBlob) => {
+    setShowPrivacyEditor(false)
+    setImagePreview(URL.createObjectURL(blurredBlob))
+    setImageFile(blurredBlob)
   }
 
   const handleSubmit = async (e) => {
@@ -42,6 +44,28 @@ export default function CreateReport({ onClose }) {
     
     setIsSubmitting(true)
     setUploadError(null)
+
+    // Modo Offline
+    if (!navigator.onLine) {
+      try {
+        await saveInfractionOffline({
+          user_id: user.id,
+          type: type,
+          description: description,
+          image_blob: imageFile, // Guardamos el blob directamente en IndexedDB
+          lat: position.lat,
+          lng: position.lng
+        })
+        
+        alert("¡Conexión perdida! Tu reporte se ha guardado localmente y se subirá cuando recuperes la señal.")
+        onClose()
+        return
+      } catch (err) {
+        setUploadError("Error al guardar reporte offline: " + err.message)
+        setIsSubmitting(false)
+        return
+      }
+    }
 
     try {
       const fileId = crypto.randomUUID()
@@ -205,7 +229,15 @@ export default function CreateReport({ onClose }) {
               )}
             </button>
           </form>
-        </div>
+      </div>
+
+      {showPrivacyEditor && rawImage && (
+        <PrivacyEditor 
+          imageBlob={rawImage} 
+          onConfirm={handlePrivacyConfirm}
+          onCancel={() => setShowPrivacyEditor(false)}
+        />
+      )}
       </div>
     </div>
   )
