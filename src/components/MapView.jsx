@@ -4,22 +4,34 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
 import HeatmapLayer from './HeatmapLayer'
+import MarkerClusterGroup from 'react-leaflet-cluster'
 
-// 🎨 Fábrica de Iconos Customizados por Estado
-const createIcon = (color) => new L.Icon({
-  iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
+// 🎨 Estilo Premium para los Clústeres (Grupos de Marcadores)
+const createClusterCustomIcon = function (cluster) {
+  return L.divIcon({
+    html: `<div class="bg-blue-600/90 backdrop-blur-md text-white font-black text-sm rounded-full w-12 h-12 flex items-center justify-center border border-blue-400/30 shadow-[0_0_20px_rgba(59,130,246,0.5)] transition-transform hover:scale-110"><span>${cluster.getChildCount()}</span></div>`,
+    className: 'custom-marker-cluster bg-transparent',
+    iconSize: L.point(48, 48, true),
+  })
+}
+
+// 🎨 Fábrica de Iconos HTML Modernos (Glassmorphism + Neón)
+const createHtmlIcon = (colorClass, pulseClass = 'animate-ping') => L.divIcon({
+  className: 'custom-html-icon bg-transparent',
+  html: `<div class="relative flex h-8 w-8 items-center justify-center">
+           <div class="absolute inline-flex h-full w-full rounded-full ${colorClass} opacity-40 ${pulseClass}"></div>
+           <div class="relative inline-flex rounded-full h-4 w-4 ${colorClass} border-2 border-[#020617] shadow-[0_0_15px_rgba(0,0,0,0.5)]"></div>
+         </div>`,
+  iconSize: [32, 32],
+  iconAnchor: [16, 16],
+  popupAnchor: [0, -16]
 })
 
 const ICONS = {
-  aprobada: createIcon('green'),
-  pendiente: createIcon('orange'),
-  rechazada: createIcon('red'),
-  en_revision: createIcon('blue')
+  aprobada: createHtmlIcon('bg-emerald-400', 'animate-pulse'),
+  pendiente: createHtmlIcon('bg-amber-400'), // pinging fast
+  rechazada: createHtmlIcon('bg-rose-500', 'opacity-50'), // no pulse, faded
+  en_revision: createHtmlIcon('bg-blue-400', 'animate-pulse')
 }
 
 function MapController({ onMapChange }) {
@@ -76,45 +88,54 @@ export default function MapView({ data, isHeatmapActive, onMapChange, onSelectRe
       {/* Capa de Calor */}
       {isHeatmapActive && <HeatmapLayer data={data} />}
 
-      {data && Array.isArray(data) && data.map((infraction) => {
-        const position = parseLocation(infraction.location)
-        if (!position) return null
+      {/* Agrupación Inteligente de Marcadores (Clustering) */}
+      <MarkerClusterGroup
+        chunkedLoading
+        iconCreateFunction={createClusterCustomIcon}
+        showCoverageOnHover={false}
+        maxClusterRadius={50}
+      >
+        {data && Array.isArray(data) && data.map((infraction) => {
+          const position = parseLocation(infraction.location)
+          if (!position) return null
 
-        const icon = ICONS[infraction.status] || ICONS.pendiente
+          const icon = ICONS[infraction.status] || ICONS.pendiente
 
-        return (
-          <Marker key={infraction.id} position={position} icon={icon}>
-            <Popup className="custom-popup">
-              <div className="p-1 min-w-[160px]">
-                <p className="font-bold text-[13px] text-white mb-2 leading-tight">{infraction.type}</p>
-                <div 
-                    className="w-full aspect-video rounded-xl overflow-hidden bg-slate-950 border border-white/10 cursor-pointer group relative"
-                    onClick={() => onSelectReport(infraction)}
-                >
-                    <img src={infraction.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt="" />
-                    <div className="absolute inset-0 bg-blue-600/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
-                        <span className="text-[8px] font-black text-white uppercase tracking-widest bg-blue-600 px-3 py-1 rounded-full shadow-xl">Ver Informe</span>
-                    </div>
+          return (
+            <Marker key={infraction.id} position={position} icon={icon}>
+              <Popup className="custom-popup">
+                <div className="p-1 min-w-[160px]">
+                  <p className="font-bold text-[13px] text-white mb-2 leading-tight">{infraction.type}</p>
+                  <div 
+                      className="w-full aspect-video rounded-xl overflow-hidden bg-slate-950 border border-white/10 cursor-pointer group relative"
+                      onClick={() => onSelectReport(infraction)}
+                  >
+                      <img src={infraction.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt="" />
+                      <div className="absolute inset-0 bg-blue-600/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                          <span className="text-[8px] font-black text-white uppercase tracking-widest bg-blue-600 px-3 py-1 rounded-full shadow-xl">Ver Informe</span>
+                      </div>
+                  </div>
+                  <div className="flex items-center justify-between mt-3">
+                    <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border ${
+                      infraction.status === 'aprobada' 
+                        ? 'text-emerald-400 border-emerald-500/20 bg-emerald-500/10' 
+                        : infraction.status === 'rechazada'
+                        ? 'text-rose-400 border-rose-500/20 bg-rose-500/10'
+                        : 'text-amber-400 border-amber-500/20 bg-amber-500/10'
+                    }`}>
+                      {infraction.status}
+                    </span>
+                    <span className="text-[9px] font-bold text-slate-500">
+                      {new Date(infraction.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between mt-3">
-                  <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border ${
-                    infraction.status === 'aprobada' 
-                      ? 'text-emerald-400 border-emerald-500/20 bg-emerald-500/10' 
-                      : infraction.status === 'rechazada'
-                      ? 'text-rose-400 border-rose-500/20 bg-rose-500/10'
-                      : 'text-amber-400 border-amber-500/20 bg-amber-500/10'
-                  }`}>
-                    {infraction.status}
-                  </span>
-                  <span className="text-[9px] font-bold text-slate-500">
-                    {new Date(infraction.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-              </div>
-            </Popup>
-          </Marker>
-        )
-      })}
+              </Popup>
+            </Marker>
+          )
+        })}
+      </MarkerClusterGroup>
+
     </MapContainer>
   )
 }
