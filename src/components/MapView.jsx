@@ -70,6 +70,19 @@ function MapController({ onMapChange }) {
   return null
 }
 
+// Componente para volar a coordenadas específicas
+function MapFlyToTarget({ targetLocation }) {
+  const map = useMap()
+  useEffect(() => {
+    if (targetLocation && targetLocation.lat && targetLocation.lon) {
+      map.flyTo([targetLocation.lat, targetLocation.lon], 15, {
+        duration: 2,
+        easeLinearity: 0.25
+      })
+    }
+  }, [targetLocation, map])
+  return null
+}
 
 // Función auxiliar para parsear la ubicación en formatos WKT o GeoJSON
 const parseLocation = (location) => {
@@ -91,7 +104,7 @@ const parseLocation = (location) => {
   return null
 }
 
-export default function MapView({ data, isHeatmapActive, isComunasActive, isMunicipiosActive, onMapChange, onSelectReport }) {
+export default function MapView({ data, isHeatmapActive, isComunasActive, isMunicipiosActive, targetLocation, onMapChange, onSelectReport }) {
   
   // 🖱️ Manejador de eventos para cada municipio de Buenos Aires
   const handleEachMunicipio = (feature, layer) => {
@@ -233,6 +246,7 @@ export default function MapView({ data, isHeatmapActive, isComunasActive, isMuni
       />
       
       <MapController onMapChange={onMapChange} />
+      <MapFlyToTarget targetLocation={targetLocation} />
 
       {/* 🏙️ Capa de Comunas (GeoJSON oficial CABA) */}
       {isComunasActive && (

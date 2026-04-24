@@ -195,3 +195,42 @@ export async function getMunicipios(provinciaId) {
     return []
   }
 }
+
+/**
+ * Obtiene las localidades (y sus centroides) dentro de un municipio.
+ * @param {string} municipioId - ID del municipio o departamento
+ * @returns {Promise<Array<{id: string, nombre: string, lat: number, lon: number}>>}
+ */
+export async function getLocalidades(municipioId) {
+  if (!municipioId) return []
+  try {
+    // Georef permite buscar localidades por municipio (o por departamento)
+    // Usamos el endpoint de localidades pidiendo explícitamente el centroide
+    let url = `${GEOREF_BASE_URL}/localidades?municipio=${municipioId}&campos=id,nombre,centroide.lat,centroide.lon&max=200`
+    
+    let response = await fetchWithTimeout(url)
+    let data = await response.json()
+    let localidades = data.localidades
+
+    // Si no encuentra por municipio, probamos por departamento (ej. CABA)
+    if (localidades.length === 0) {
+      url = `${GEOREF_BASE_URL}/localidades?departamento=${municipioId}&campos=id,nombre,centroide.lat,centroide.lon&max=200`
+      response = await fetchWithTimeout(url)
+      data = await response.json()
+      localidades = data.localidades
+    }
+
+    // Mapeamos para aplanar el objeto centroide y ordenamos alfabéticamente
+    return localidades.map(loc => ({
+      id: loc.id,
+      nombre: loc.nombre,
+      lat: loc.centroide.lat,
+      lon: loc.centroide.lon
+    })).sort((a, b) => a.nombre.localeCompare(b.nombre))
+
+  } catch (error) {
+    console.error(`Error fetching localidades for municipio ${municipioId}:`, error)
+    return []
+  }
+}
+

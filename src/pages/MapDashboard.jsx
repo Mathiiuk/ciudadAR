@@ -5,6 +5,7 @@ import BottomNav from '../components/BottomNav'
 import MapToggleBtn from '../components/MapToggleBtn'
 import MapView from '../components/MapView'
 import CreateReport from '../components/CreateReport'
+import LocalityFilter from '../components/LocalityFilter'
 import { useInfractions } from '../hooks/useInfractions'
 
 const STATUS_CONFIG = {
@@ -18,6 +19,7 @@ export default function MapDashboard() {
   const [isHeatmapActive, setIsHeatmapActive] = useState(false)
   const [isComunasActive, setIsComunasActive] = useState(false) // toggle para capa de comunas
   const [isMunicipiosActive, setIsMunicipiosActive] = useState(false) // toggle para municipios BsAs
+  const [targetLocation, setTargetLocation] = useState(null) // Coordenadas para flyTo
   const [isReporting, setIsReporting] = useState(false)
   const [selectedReport, setSelectedReport] = useState(null)
 
@@ -26,6 +28,8 @@ export default function MapDashboard() {
   return (
     <div className="w-screen h-screen overflow-hidden flex flex-col relative bg-[#020617]">
       <Header />
+      
+      <LocalityFilter onLocationSelect={setTargetLocation} />
 
       <div className="absolute inset-0 z-0">
         <MapView
@@ -33,6 +37,7 @@ export default function MapDashboard() {
           isHeatmapActive={isHeatmapActive}
           isComunasActive={isComunasActive}
           isMunicipiosActive={isMunicipiosActive}
+          targetLocation={targetLocation}
           onMapChange={handleMapChange}
           onSelectReport={(report) => setSelectedReport(report)}
         />
