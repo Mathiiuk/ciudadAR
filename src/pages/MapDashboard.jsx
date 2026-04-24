@@ -17,6 +17,7 @@ const STATUS_CONFIG = {
 export default function MapDashboard() {
   const [isHeatmapActive, setIsHeatmapActive] = useState(false)
   const [isComunasActive, setIsComunasActive] = useState(false) // toggle para capa de comunas
+  const [isMunicipiosActive, setIsMunicipiosActive] = useState(false) // toggle para municipios BsAs
   const [isReporting, setIsReporting] = useState(false)
   const [selectedReport, setSelectedReport] = useState(null)
 
@@ -31,6 +32,7 @@ export default function MapDashboard() {
           data={data}
           isHeatmapActive={isHeatmapActive}
           isComunasActive={isComunasActive}
+          isMunicipiosActive={isMunicipiosActive}
           onMapChange={handleMapChange}
           onSelectReport={(report) => setSelectedReport(report)}
         />
@@ -46,6 +48,8 @@ export default function MapDashboard() {
         toggle={() => setIsHeatmapActive(!isHeatmapActive)}
         isComunasActive={isComunasActive}
         toggleComunas={() => setIsComunasActive(!isComunasActive)}
+        isMunicipiosActive={isMunicipiosActive}
+        toggleMunicipios={() => setIsMunicipiosActive(!isMunicipiosActive)}
       />
 
       <BottomNav onReportClick={() => setIsReporting(true)} />

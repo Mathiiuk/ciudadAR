@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Layers, Flame, Map as MapIcon, X } from 'lucide-react'
+import { Layers, Flame, Map as MapIcon, Building2, X } from 'lucide-react'
 
 // Componente responsivo con menú expandible para móviles y desktop
-export default function MapToggleBtn({ isHeatmapActive, toggle, isComunasActive, toggleComunas }) {
+export default function MapToggleBtn({ isHeatmapActive, toggle, isComunasActive, toggleComunas, isMunicipiosActive, toggleMunicipios }) {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
@@ -25,6 +25,19 @@ export default function MapToggleBtn({ isHeatmapActive, toggle, isComunasActive,
         >
           <span className="text-[10px] md:text-xs font-black tracking-widest uppercase">Límites Comunas</span>
           <MapIcon className="w-5 h-5" />
+        </button>
+
+        {/* Botón Municipios Buenos Aires */}
+        <button
+          onClick={() => { toggleMunicipios(); setIsOpen(false) }}
+          className={`flex items-center gap-3 px-4 py-3 rounded-2xl backdrop-blur-xl shadow-2xl transition-all active:scale-95 ${
+            isMunicipiosActive
+              ? 'bg-emerald-600/90 text-white shadow-[0_0_20px_rgba(34,197,94,0.4)] border border-emerald-400/50'
+              : 'bg-slate-900/90 text-slate-300 border border-slate-700/80 hover:bg-slate-800'
+          }`}
+        >
+          <span className="text-[10px] md:text-xs font-black tracking-widest uppercase">Municipios BA</span>
+          <Building2 className="w-5 h-5" />
         </button>
 
         {/* Botón Heatmap */}

@@ -5,8 +5,9 @@ import 'leaflet/dist/leaflet.css'
 
 import HeatmapLayer from './HeatmapLayer'
 import MarkerClusterGroup from 'react-leaflet-cluster'
-// Importamos el GeoJSON oficial de las comunas de CABA
+// Importamos los GeoJSON oficiales
 import comunasData from '../data/comunas.json'
+import municipiosData from '../data/municipios_bsas.json'
 
 // 🎨 Estilo Premium para los Clústeres (Grupos de Marcadores)
 const createClusterCustomIcon = function (cluster) {
@@ -45,6 +46,15 @@ const comunaStyleBase = {
   fillOpacity: 0.08,     // Relleno muy sutil
 }
 
+// 🗺️ Estilo base para los polígonos de municipios de Buenos Aires
+const municipioStyleBase = {
+  fillColor: '#22c55e',   // Verde vibrante (diferente a comunas)
+  weight: 1,              // Borde más fino
+  opacity: 0.5,           // Opacidad del borde
+  color: '#4ade80',       // Verde claro para el borde
+  fillOpacity: 0.06,      // Relleno muy sutil
+}
+
 function MapController({ onMapChange }) {
   const map = useMap()
   useEffect(() => {
@@ -81,7 +91,70 @@ const parseLocation = (location) => {
   return null
 }
 
-export default function MapView({ data, isHeatmapActive, isComunasActive, onMapChange, onSelectReport }) {
+export default function MapView({ data, isHeatmapActive, isComunasActive, isMunicipiosActive, onMapChange, onSelectReport }) {
+  
+  // 🖱️ Manejador de eventos para cada municipio de Buenos Aires
+  const handleEachMunicipio = (feature, layer) => {
+    if (!feature.properties) return
+    const nombre = feature.properties.nombre || 'Sin nombre'
+    const categoria = feature.properties.categoria || 'Partido'
+
+    // 🏷️ Etiqueta permanente con el nombre del municipio
+    layer.bindTooltip(
+      `<div class="municipio-permanent-label">${nombre}</div>`,
+      { 
+        permanent: true, 
+        direction: 'center', 
+        className: 'leaflet-tooltip-permanent-municipio',
+        opacity: 0.85 
+      }
+    )
+
+    // 📝 Popup con info del municipio
+    const popupContent = `
+      <div class="popup-comuna-content">
+        <div class="popup-municipio-header">📍 ${categoria.toUpperCase()}</div>
+        <p class="popup-comuna-barrios">${nombre}</p>
+      </div>
+    `
+    layer.bindPopup(popupContent, {
+      className: 'leaflet-popup-municipio',
+      autoPan: false,
+      closeButton: false,
+    })
+
+    layer.on({
+      // Resaltar al pasar el mouse
+      mouseover: (e) => {
+        e.target.setStyle({
+          fillColor: '#22c55e',
+          fillOpacity: 0.25,
+          weight: 2,
+          color: '#ffffff',
+          opacity: 1,
+        })
+      },
+      // Restaurar estilo
+      mouseout: (e) => {
+        e.target.setStyle(municipioStyleBase)
+      },
+      // Click: zoom cinemático
+      click: (e) => {
+        const clickedLayer = e.target
+        const map = clickedLayer._map
+
+        map.flyToBounds(clickedLayer.getBounds(), {
+          padding: [70, 70],
+          duration: 1.2,
+          easeLinearity: 0.25
+        })
+
+        setTimeout(() => {
+          clickedLayer.openPopup()
+        }, 100)
+      },
+    })
+  }
   
   // 🖱️ Manejador de eventos para cada comuna
   const handleEachComuna = (feature, layer) => {
@@ -168,6 +241,16 @@ export default function MapView({ data, isHeatmapActive, isComunasActive, onMapC
           data={comunasData}
           style={comunaStyleBase}
           onEachFeature={handleEachComuna}
+        />
+      )}
+
+      {/* 🗺️ Capa de Municipios de Buenos Aires */}
+      {isMunicipiosActive && (
+        <GeoJSON
+          key="municipios-bsas-layer"
+          data={municipiosData}
+          style={municipioStyleBase}
+          onEachFeature={handleEachMunicipio}
         />
       )}
 
