@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, useMap, GeoJSON } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -82,6 +82,118 @@ function MapFlyToTarget({ targetLocation }) {
     }
   }, [targetLocation, map])
   return null
+}
+
+// Bloquea el scroll nativo del documento cuando el dedo está sobre el mapa
+// Esto permite que Leaflet maneje TODOS los gestos (pan, pinch-zoom, doble tap) sin interferencia
+function MapScrollBlocker() {
+  const map = useMap()
+  useEffect(() => {
+    const container = map.getContainer()
+
+    // Prevenir scroll y pull-to-refresh del navegador solo dentro del mapa
+    const preventScroll = (e) => {
+      e.stopPropagation()
+      // Solo prevenimos si hay más de un toque O si es un deslizamiento horizontal
+      // Leaflet maneja todo internamente, el navegador no debe interferir
+      if (e.touches.length > 1) {
+        e.preventDefault()
+      } else if (e.touches.length === 1) {
+        e.preventDefault() // Prevenir scroll de una sola mano también
+      }
+    }
+
+    // Registramos el listener con passive:false para poder llamar preventDefault()
+    container.addEventListener('touchmove', preventScroll, { passive: false })
+    container.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true })
+
+    return () => {
+      container.removeEventListener('touchmove', preventScroll)
+    }
+  }, [map])
+  return null
+}
+
+// Botón de Geolocaliza ción con feedback háptico
+function GpsFixButton() {
+  const map = useMap()
+  const [tracking, setTracking] = useState(false)
+  const markerRef = useRef(null)
+
+  const handleLocate = () => {
+    setTracking(true)
+
+    // Vibrar el teléfono al activar (feedback háptico nativo)
+    if ('vibrate' in navigator) navigator.vibrate(40)
+
+    // Pedir la posición del GPS al navegador
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords
+
+        // Volar cinemáticamente a la posición del usuario
+        map.flyTo([latitude, longitude], 16, { duration: 1.8, easeLinearity: 0.25 })
+
+        // Crear o actualizar el icono del puntito azul pulsante (como Google Maps)
+        if (markerRef.current) map.removeLayer(markerRef.current)
+        const icon = L.divIcon({
+          className: '',
+          html: `
+            <div class="relative flex items-center justify-center" style="width:52px;height:52px;">
+              <div class="absolute w-12 h-12 rounded-full bg-blue-500/20 animate-ping"></div>
+              <div class="absolute w-6 h-6 rounded-full bg-blue-500/30 border-2 border-blue-400/50"></div>
+              <div class="w-4 h-4 rounded-full bg-blue-500 border-2 border-white shadow-[0_0_12px_rgba(59,130,246,0.8)]"></div>
+            </div>`,
+          iconSize: [52, 52],
+          iconAnchor: [26, 26],
+        })
+        const marker = L.marker([latitude, longitude], { icon })
+          .addTo(map)
+          .bindPopup(`
+            <div class="text-center">
+              <p class="font-bold text-white text-sm">Tú ubicación</p>
+              <p class="text-gray-400 text-xs">Precisión: ±${Math.round(accuracy)}m</p>
+            </div>`, { className: 'custom-popup' })
+
+        markerRef.current = marker
+        setTracking(false)
+
+        // Segundo vibrado suave al llegar
+        if ('vibrate' in navigator) navigator.vibrate([30, 50, 30])
+      },
+      () => {
+        // Error de permisos o GPS no disponible
+        setTracking(false)
+        if ('vibrate' in navigator) navigator.vibrate([100, 50, 100])
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  }
+
+  return (
+    <div className="leaflet-top leaflet-right" style={{ marginTop: '90px' }}>
+      <div className="leaflet-control">
+        <button
+          onClick={handleLocate}
+          disabled={tracking}
+          title="Mi ubicación"
+          className="flex items-center justify-center w-12 h-12 rounded-2xl bg-slate-900/90 backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.5)] transition-all active:scale-90 disabled:opacity-60"
+          style={{ display: 'flex' }}
+        >
+          {tracking ? (
+            // Spinner mientras busca
+            <div className="w-5 h-5 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+          ) : (
+            // Ícono de brujula/target
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+            </svg>
+          )}
+        </button>
+      </div>
+    </div>
+  )
 }
 
 // Función auxiliar para parsear la ubicación en formatos WKT o GeoJSON
@@ -248,6 +360,8 @@ export default function MapView({ data, isHeatmapActive, isComunasActive, isMuni
       
       <MapController onMapChange={onMapChange} />
       <MapFlyToTarget targetLocation={targetLocation} />
+      <MapScrollBlocker />
+      <GpsFixButton />
 
       {/* 🏙️ Capa de Comunas (GeoJSON oficial CABA) */}
       {isComunasActive && (
