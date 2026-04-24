@@ -204,20 +204,26 @@ export async function getMunicipios(provinciaId) {
 export async function getLocalidades(municipioId) {
   if (!municipioId) return []
   try {
-    // Georef permite buscar localidades por municipio (o por departamento)
-    // Usamos el endpoint de localidades pidiendo explícitamente el centroide
-    let url = `${GEOREF_BASE_URL}/localidades?municipio=${municipioId}&campos=id,nombre,centroide.lat,centroide.lon&max=200`
+    let localidades = []
     
+    // 1. Intentar buscar como gobierno_local (Municipios)
+    let url = `${GEOREF_BASE_URL}/localidades?gobierno_local=${municipioId}&campos=id,nombre,centroide.lat,centroide.lon&max=200`
     let response = await fetchWithTimeout(url)
-    let data = await response.json()
-    let localidades = data.localidades
+    
+    if (response.ok) {
+      let data = await response.json()
+      localidades = data.localidades || []
+    }
 
-    // Si no encuentra por municipio, probamos por departamento (ej. CABA)
+    // 2. Si falló o no hay resultados, probar como departamento (Ej: CABA o provincias sin municipios)
     if (localidades.length === 0) {
       url = `${GEOREF_BASE_URL}/localidades?departamento=${municipioId}&campos=id,nombre,centroide.lat,centroide.lon&max=200`
       response = await fetchWithTimeout(url)
-      data = await response.json()
-      localidades = data.localidades
+      
+      if (response.ok) {
+        let data = await response.json()
+        localidades = data.localidades || []
+      }
     }
 
     // Mapeamos para aplanar el objeto centroide y ordenamos alfabéticamente
@@ -233,4 +239,3 @@ export async function getLocalidades(municipioId) {
     return []
   }
 }
-
