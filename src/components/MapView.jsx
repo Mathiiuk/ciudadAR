@@ -3,29 +3,62 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
-// 🎨 Marcador Customizado para Dark Mode
-const customIcon = new L.Icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/684/684908.png',
-  iconSize: [32, 32],
-  iconAnchor: [16, 32],
-  popupAnchor: [0, -32],
-  className: 'drop-shadow-[0_0_10px_rgba(59,130,246,0.5)]'
+import HeatmapLayer from './HeatmapLayer'
+
+// 🎨 Fábrica de Iconos Customizados por Estado
+const createIcon = (color) => new L.Icon({
+  iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
 })
+
+const ICONS = {
+  aprobada: createIcon('green'),
+  pendiente: createIcon('orange'),
+  rechazada: createIcon('red'),
+  en_revision: createIcon('blue')
+}
 
 function MapController({ onMapChange }) {
   const map = useMap()
   useEffect(() => {
     map.on('moveend', () => {
-      onMapChange({
-        center: map.getCenter(),
-        zoom: map.getZoom()
-      })
+      const center = map.getCenter()
+      const zoom = map.getZoom()
+      // Cálculo aproximado de radio en metros según el zoom
+      const radius = Math.floor(40075016.686 / Math.pow(2, zoom + 1))
+      
+      onMapChange(center.lat, center.lng, radius)
     })
   }, [map, onMapChange])
   return null
 }
 
-export default function MapView({ data, onMapChange }) {
+
+// Función auxiliar para parsear la ubicación en formatos WKT o GeoJSON
+const parseLocation = (location) => {
+  if (!location) return null
+  
+  // Caso 1: Objeto GeoJSON (común en respuestas de Supabase v2+)
+  if (typeof location === 'object' && location.coordinates) {
+    return [location.coordinates[1], location.coordinates[0]] // [lat, lng]
+  }
+
+  // Caso 2: String WKT (ej. "POINT(-58.3816 -34.6037)")
+  if (typeof location === 'string') {
+    const coordsMatch = location.match(/\((.*) (.*)\)/)
+    if (coordsMatch) {
+      return [parseFloat(coordsMatch[2]), parseFloat(coordsMatch[1])]
+    }
+  }
+
+  return null
+}
+
+export default function MapView({ data, isHeatmapActive, onMapChange, onSelectReport }) {
   return (
     <MapContainer
       center={[-34.6037, -58.3816]} // Buenos Aires
@@ -40,21 +73,43 @@ export default function MapView({ data, onMapChange }) {
       
       <MapController onMapChange={onMapChange} />
 
+      {/* Capa de Calor */}
+      {isHeatmapActive && <HeatmapLayer data={data} />}
+
       {data && Array.isArray(data) && data.map((infraction) => {
-        // Extraer coordenadas de Point(lng lat)
-        const coordsMatch = infraction.location.match(/\((.*) (.*)\)/)
-        if (!coordsMatch) return null
-        const position = [parseFloat(coordsMatch[2]), parseFloat(coordsMatch[1])]
+        const position = parseLocation(infraction.location)
+        if (!position) return null
+
+        const icon = ICONS[infraction.status] || ICONS.pendiente
 
         return (
-          <Marker key={infraction.id} position={position} icon={customIcon}>
-            <Popup>
-              <div className="p-1">
-                <p className="font-bold text-sm text-white mb-1">{infraction.type}</p>
-                <div className="w-full aspect-video rounded-lg overflow-hidden bg-slate-900">
-                    <img src={infraction.image_url} className="w-full h-full object-cover" alt="" />
+          <Marker key={infraction.id} position={position} icon={icon}>
+            <Popup className="custom-popup">
+              <div className="p-1 min-w-[160px]">
+                <p className="font-bold text-[13px] text-white mb-2 leading-tight">{infraction.type}</p>
+                <div 
+                    className="w-full aspect-video rounded-xl overflow-hidden bg-slate-950 border border-white/10 cursor-pointer group relative"
+                    onClick={() => onSelectReport(infraction)}
+                >
+                    <img src={infraction.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt="" />
+                    <div className="absolute inset-0 bg-blue-600/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                        <span className="text-[8px] font-black text-white uppercase tracking-widest bg-blue-600 px-3 py-1 rounded-full shadow-xl">Ver Informe</span>
+                    </div>
                 </div>
-                <p className="text-[10px] text-slate-400 mt-2">Estado: {infraction.status}</p>
+                <div className="flex items-center justify-between mt-3">
+                  <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border ${
+                    infraction.status === 'aprobada' 
+                      ? 'text-emerald-400 border-emerald-500/20 bg-emerald-500/10' 
+                      : infraction.status === 'rechazada'
+                      ? 'text-rose-400 border-rose-500/20 bg-rose-500/10'
+                      : 'text-amber-400 border-amber-500/20 bg-amber-500/10'
+                  }`}>
+                    {infraction.status}
+                  </span>
+                  <span className="text-[9px] font-bold text-slate-500">
+                    {new Date(infraction.created_at).toLocaleDateString()}
+                  </span>
+                </div>
               </div>
             </Popup>
           </Marker>
@@ -63,3 +118,4 @@ export default function MapView({ data, onMapChange }) {
     </MapContainer>
   )
 }
+

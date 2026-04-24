@@ -3,32 +3,37 @@ import { useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet.heat'
 
-export default function HeatmapLayer({ features }) {
+export default function HeatmapLayer({ data }) {
   const map = useMap()
 
   useEffect(() => {
-    if (!features || features.length === 0) return
+    if (!data || data.length === 0) return
 
-    // GeoJSON native coordinates are [longitude, latitude]
-    // Leaflet Heat coordinates must be [latitude, longitude, intensity]
-    const points = features.map(f => {
-      const [lng, lat] = f.geometry.coordinates
-      return [lat, lng, 1] 
-    })
+    // Adaptamos desde el formato de objeto de infracción
+    const points = data.map(infraction => {
+      // Recordamos que location es un objeto {type, coordinates} o null si falló el parseo
+      if (infraction.location && infraction.location.coordinates) {
+        const [lng, lat] = infraction.location.coordinates
+        return [lat, lng, 1.2] // Incrementamos intensidad base
+      }
+      return null
+    }).filter(p => p !== null)
+
     
     // Create the heat layer
     const heatLayer = L.heatLayer(points, {
-      radius: 25,
-      blur: 15,
-      maxZoom: 15,
+      radius: 35,
+      blur: 20,
+      maxZoom: 17,
       gradient: {
-        0.4: 'blue',
-        0.6: 'cyan',
-        0.7: 'lime',
-        0.8: 'yellow',
-        1.0: 'red'
+        0.2: '#3b82f6', // Azul suave
+        0.4: '#22d3ee', // Cyan
+        0.6: '#4ade80', // Verde
+        0.8: '#facc15', // Amarillo
+        1.0: '#ef4444'  // Rojo intenso
       }
     })
+
 
     heatLayer.addTo(map)
 
@@ -36,7 +41,7 @@ export default function HeatmapLayer({ features }) {
     return () => {
       map.removeLayer(heatLayer)
     }
-  }, [map, features])
+  }, [map, data])
 
   return null
 }
