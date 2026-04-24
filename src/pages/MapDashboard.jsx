@@ -107,7 +107,10 @@ export default function MapDashboard() {
                       <div className="p-2 bg-slate-800 rounded-xl w-fit"><MapPin className="w-4 h-4 text-emerald-400" /></div>
                       <div>
                         <p className="text-[8px] uppercase tracking-widest text-slate-500 font-black">Ubicación</p>
-                        <p className="text-xs font-bold text-slate-300">Buenos Aires, AR</p>
+                        <p className="text-xs font-bold text-slate-300 leading-relaxed">
+                          {/* Mostrar dirección real si está disponible en el reporte */}
+                          {selectedReport.direccion || selectedReport.provincia || 'Buenos Aires, AR'}
+                        </p>
                       </div>
                     </div>
                   </div>
