@@ -84,7 +84,7 @@ export default function Login() {
         if (authError) throw authError
 
         if (authData?.user) {
-          // 2. Guardar datos extendidos en profiles (intentamos upsert)
+          // 2. Guardar datos extendidos en profiles
           const { error: profileError } = await supabase
             .from('profiles')
             .upsert({ 
@@ -99,6 +99,13 @@ export default function Login() {
           if (profileError) console.error("Error guardando perfil:", profileError)
         }
         
+        // Si Supabase requiere confirmación de email, no hay sesión aún.
+        if (!authData.session) {
+          setError("¡Registro exitoso! Por favor, revisa tu bandeja de entrada para confirmar tu correo.")
+          setLoading(false)
+          return
+        }
+
         navigate('/map')
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -106,7 +113,17 @@ export default function Login() {
         navigate('/map')
       }
     } catch (err) {
-      setError(err.message)
+      // 🌐 Traducción de errores comunes de Supabase al español
+      let errorMsg = err.message
+      if (errorMsg === 'Email not confirmed') {
+        errorMsg = 'Debes confirmar tu correo electrónico antes de iniciar sesión. Por favor, revisa tu bandeja de entrada.'
+      } else if (errorMsg === 'Invalid login credentials') {
+        errorMsg = 'Credenciales inválidas. Verifica tu correo y contraseña.'
+      } else if (errorMsg === 'User already registered') {
+        errorMsg = 'Este correo ya está registrado.'
+      }
+      
+      setError(errorMsg)
     } finally {
       setLoading(false)
     }
