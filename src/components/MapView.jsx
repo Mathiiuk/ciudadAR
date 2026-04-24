@@ -237,8 +237,9 @@ export default function MapView({ data, isHeatmapActive, isComunasActive, isMuni
     <MapContainer
       center={[-34.6037, -58.3816]} // Buenos Aires
       zoom={13}
-      style={{ height: '100%', width: '100%' }}
+      style={{ height: '100%', width: '100%', touchAction: 'none' }}
       zoomControl={false}
+      tap={false} // Evita el "ghost click" en móviles que puede trabar el drag
     >
       <TileLayer
         url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
