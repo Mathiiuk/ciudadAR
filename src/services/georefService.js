@@ -141,3 +141,57 @@ export async function reverseGeocode(lat, lng) {
 export function clearGeorefCache() {
   cache.clear()
 }
+
+/**
+ * Obtiene la lista de provincias de Argentina.
+ * @returns {Promise<Array<{id: string, nombre: string}>>}
+ */
+export async function getProvincias() {
+  try {
+    const response = await fetchWithTimeout(`${GEOREF_BASE_URL}/provincias?campos=id,nombre&max=100`)
+    if (!response.ok) throw new Error('Error al obtener provincias')
+    const data = await response.json()
+    // Ordenar alfabéticamente
+    return data.provincias.sort((a, b) => a.nombre.localeCompare(b.nombre))
+  } catch (error) {
+    console.error('Error fetching provincias:', error)
+    return []
+  }
+}
+
+/**
+ * Obtiene los municipios o departamentos de una provincia.
+ * @param {string} provinciaId - ID de la provincia
+ * @returns {Promise<Array<{id: string, nombre: string}>>}
+ */
+export async function getMunicipios(provinciaId) {
+  if (!provinciaId) return []
+  try {
+    // Para algunas provincias (como CABA), la subdivisión es "departamentos" (comunas) en lugar de "municipios"
+    // Consultamos ambas y unimos los resultados si es necesario, o priorizamos municipios y fallback a departamentos
+    
+    let localidades = []
+    
+    // Primero intentamos municipios
+    const responseMuni = await fetchWithTimeout(`${GEOREF_BASE_URL}/municipios?provincia=${provinciaId}&campos=id,nombre&max=200`)
+    if (responseMuni.ok) {
+      const dataMuni = await responseMuni.json()
+      localidades = dataMuni.municipios
+    }
+
+    // Si no hay municipios (ej. CABA), probamos departamentos
+    if (localidades.length === 0) {
+      const responseDepto = await fetchWithTimeout(`${GEOREF_BASE_URL}/departamentos?provincia=${provinciaId}&campos=id,nombre&max=200`)
+      if (responseDepto.ok) {
+        const dataDepto = await responseDepto.json()
+        localidades = dataDepto.departamentos
+      }
+    }
+
+    // Ordenar alfabéticamente
+    return localidades.sort((a, b) => a.nombre.localeCompare(b.nombre))
+  } catch (error) {
+    console.error(`Error fetching municipios for provincia ${provinciaId}:`, error)
+    return []
+  }
+}

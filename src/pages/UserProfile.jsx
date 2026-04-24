@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   ArrowLeft, LogOut, Edit3, Check, X, 
-  FileText, Clock, CheckCircle, AlertCircle, ChevronRight
+  FileText, Clock, CheckCircle, AlertCircle, ChevronRight, MapPin
 } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
@@ -161,7 +161,15 @@ export default function UserProfile() {
             <div className="flex flex-col items-center gap-1">
               <p className="text-xl font-bold">{profile?.full_name || 'Sin nombre'}</p>
               <p className="text-sm text-gray-400">@{profile?.username || '...'}</p>
-              <p className="text-xs text-gray-500">{user?.email}</p>
+              <p className="text-xs text-gray-500 mb-1">{user?.email}</p>
+              
+              {profile?.municipio_nombre && profile?.provincia_nombre && (
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 mt-1">
+                  <MapPin className="w-3.5 h-3.5" />
+                  <span>{profile.municipio_nombre}, {profile.provincia_nombre}</span>
+                </div>
+              )}
+
               <button
                 onClick={() => setEditing(true)}
                 className="mt-2 flex items-center gap-1.5 text-blue-400 text-xs border border-blue-500/30 bg-blue-500/10 px-3 py-1.5 rounded-full hover:bg-blue-500/20 transition"
