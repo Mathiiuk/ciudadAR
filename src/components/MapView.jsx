@@ -1,10 +1,13 @@
 import { useEffect } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, useMap, GeoJSON } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
 import HeatmapLayer from './HeatmapLayer'
 import MarkerClusterGroup from 'react-leaflet-cluster'
+// Importamos los GeoJSON oficiales
+import comunasData from '../data/comunas.json'
+import municipiosData from '../data/municipios_bsas.json'
 
 // 🎨 Estilo Premium para los Clústeres (Grupos de Marcadores)
 const createClusterCustomIcon = function (cluster) {
@@ -34,6 +37,24 @@ const ICONS = {
   en_revision: createHtmlIcon('bg-blue-400', 'animate-pulse')
 }
 
+// 🗺️ Estilo base para los polígonos de cada comuna
+const comunaStyleBase = {
+  fillColor: '#3b82f6',  // Azul vibrante
+  weight: 1.5,           // Grosor del borde
+  opacity: 0.7,          // Opacidad del borde
+  color: '#60a5fa',      // Color del borde (azul claro)
+  fillOpacity: 0.08,     // Relleno muy sutil
+}
+
+// 🗺️ Estilo base para los polígonos de municipios de Buenos Aires
+const municipioStyleBase = {
+  fillColor: '#22c55e',   // Verde vibrante (diferente a comunas)
+  weight: 1,              // Borde más fino
+  opacity: 0.5,           // Opacidad del borde
+  color: '#4ade80',       // Verde claro para el borde
+  fillOpacity: 0.06,      // Relleno muy sutil
+}
+
 function MapController({ onMapChange }) {
   const map = useMap()
   useEffect(() => {
@@ -49,6 +70,19 @@ function MapController({ onMapChange }) {
   return null
 }
 
+// Componente para volar a coordenadas específicas
+function MapFlyToTarget({ targetLocation }) {
+  const map = useMap()
+  useEffect(() => {
+    if (targetLocation && targetLocation.lat && targetLocation.lon) {
+      map.flyTo([targetLocation.lat, targetLocation.lon], 15, {
+        duration: 2,
+        easeLinearity: 0.25
+      })
+    }
+  }, [targetLocation, map])
+  return null
+}
 
 // Función auxiliar para parsear la ubicación en formatos WKT o GeoJSON
 const parseLocation = (location) => {
@@ -70,7 +104,135 @@ const parseLocation = (location) => {
   return null
 }
 
-export default function MapView({ data, isHeatmapActive, onMapChange, onSelectReport }) {
+export default function MapView({ data, isHeatmapActive, isComunasActive, isMunicipiosActive, targetLocation, onMapChange, onSelectReport }) {
+  
+  // 🖱️ Manejador de eventos para cada municipio de Buenos Aires
+  const handleEachMunicipio = (feature, layer) => {
+    if (!feature.properties) return
+    const nombre = feature.properties.nombre || 'Sin nombre'
+    const categoria = feature.properties.categoria || 'Partido'
+
+    // 🏷️ Etiqueta permanente con el nombre del municipio
+    layer.bindTooltip(
+      `<div class="municipio-permanent-label">${nombre}</div>`,
+      { 
+        permanent: true, 
+        direction: 'center', 
+        className: 'leaflet-tooltip-permanent-municipio',
+        opacity: 0.85 
+      }
+    )
+
+    // 📝 Popup con info del municipio
+    const popupContent = `
+      <div class="popup-comuna-content">
+        <div class="popup-municipio-header">📍 ${categoria.toUpperCase()}</div>
+        <p class="popup-comuna-barrios">${nombre}</p>
+      </div>
+    `
+    layer.bindPopup(popupContent, {
+      className: 'leaflet-popup-municipio',
+      autoPan: false,
+      closeButton: false,
+    })
+
+    layer.on({
+      // Resaltar al pasar el mouse
+      mouseover: (e) => {
+        e.target.setStyle({
+          fillColor: '#22c55e',
+          fillOpacity: 0.25,
+          weight: 2,
+          color: '#ffffff',
+          opacity: 1,
+        })
+      },
+      // Restaurar estilo
+      mouseout: (e) => {
+        e.target.setStyle(municipioStyleBase)
+      },
+      // Click: zoom cinemático
+      click: (e) => {
+        const clickedLayer = e.target
+        const map = clickedLayer._map
+
+        map.flyToBounds(clickedLayer.getBounds(), {
+          padding: [70, 70],
+          duration: 1.2,
+          easeLinearity: 0.25
+        })
+
+        setTimeout(() => {
+          clickedLayer.openPopup()
+        }, 100)
+      },
+    })
+  }
+  
+  // 🖱️ Manejador de eventos para cada comuna
+  const handleEachComuna = (feature, layer) => {
+    if (!feature.properties) return
+    const { comuna, barrios } = feature.properties
+
+    // 🏷️ Etiqueta PERMANENTE centrada para identificar la comuna sin hover
+    layer.bindTooltip(
+      `<div class="comuna-permanent-label">Comuna ${comuna}</div>`,
+      { 
+        permanent: true, 
+        direction: 'center', 
+        className: 'leaflet-tooltip-permanent-comuna',
+        opacity: 0.9 
+      }
+    )
+
+    // 📝 Popup con información detallada de los barrios
+    const popupContent = `
+      <div class="popup-comuna-content">
+        <div class="popup-comuna-header">🏙️ COMUNA ${comuna}</div>
+        <p class="popup-comuna-barrios">${barrios}</p>
+      </div>
+    `
+    layer.bindPopup(popupContent, {
+      className: 'leaflet-popup-comuna',
+      autoPan: false,
+      closeButton: false, // Más limpio sin botón de cerrar si es interactivo
+    })
+
+    layer.on({
+      // Efecto de iluminación al pasar el mouse
+      mouseover: (e) => {
+        e.target.setStyle({
+          fillColor: '#3b82f6',
+          fillOpacity: 0.3,
+          weight: 2.5,
+          color: '#ffffff',
+          opacity: 1,
+        })
+      },
+      // Volver al estilo base al salir
+      mouseout: (e) => {
+        e.target.setStyle(comunaStyleBase)
+      },
+      // Al hacer click: Zoom cinemático y mostrar info
+      click: (e) => {
+        const clickedLayer = e.target
+        const map = clickedLayer._map
+
+        // Animación suave de enfoque
+        map.flyToBounds(clickedLayer.getBounds(), {
+          padding: [70, 70],
+          duration: 1.2,
+          easeLinearity: 0.25
+        })
+
+        // Abrir el popup después de un breve instante para asegurar que la cámara está en posición
+        setTimeout(() => {
+          clickedLayer.openPopup()
+        }, 100)
+      },
+    })
+  }
+
   return (
     <MapContainer
       center={[-34.6037, -58.3816]} // Buenos Aires
@@ -84,11 +246,32 @@ export default function MapView({ data, isHeatmapActive, onMapChange, onSelectRe
       />
       
       <MapController onMapChange={onMapChange} />
+      <MapFlyToTarget targetLocation={targetLocation} />
 
-      {/* Capa de Calor */}
+      {/* 🏙️ Capa de Comunas (GeoJSON oficial CABA) */}
+      {isComunasActive && (
+        <GeoJSON
+          key="comunas-layer"
+          data={comunasData}
+          style={comunaStyleBase}
+          onEachFeature={handleEachComuna}
+        />
+      )}
+
+      {/* 🗺️ Capa de Municipios de Buenos Aires */}
+      {isMunicipiosActive && (
+        <GeoJSON
+          key="municipios-bsas-layer"
+          data={municipiosData}
+          style={municipioStyleBase}
+          onEachFeature={handleEachMunicipio}
+        />
+      )}
+
+      {/* 🔥 Capa de Calor */}
       {isHeatmapActive && <HeatmapLayer data={data} />}
 
-      {/* Agrupación Inteligente de Marcadores (Clustering) */}
+      {/* 📍 Agrupación Inteligente de Marcadores (Clustering) */}
       <MarkerClusterGroup
         chunkedLoading
         iconCreateFunction={createClusterCustomIcon}
@@ -139,4 +322,3 @@ export default function MapView({ data, isHeatmapActive, onMapChange, onSelectRe
     </MapContainer>
   )
 }
-

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Camera, MapPin, Send, X, ShieldCheck, ShieldAlert, Loader2 } from 'lucide-react'
+import { Camera, MapPin, Send, X, ShieldCheck, ShieldAlert, Loader2, Navigation } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import PrivacyEditor from './PrivacyEditor'
 import { verifyInfractionImage } from '../utils/verifyInfractionWithAI'
+import { useReverseGeocode } from '../hooks/useReverseGeocode'
 
 const INFRACTION_TYPES = [
   'Mal Estacionamiento',
@@ -25,6 +26,9 @@ export default function CreateReport({ onClose }) {
   const [verifyResult, setVerifyResult] = useState(null)
   const [position, setPosition] = useState(null)
   const [uploadError, setUploadError] = useState(null)
+
+  // 🌐 Geocodificación inversa: resuelve coordenadas GPS a dirección textual
+  const { locationData, isLoading: isGeoLoading } = useReverseGeocode(position)
 
   useEffect(() => {
     navigator.geolocation.getCurrentPosition(
@@ -110,6 +114,12 @@ export default function CreateReport({ onClose }) {
         type: type,
         description: sanitizedDescription,
         status: verification.valid ? 'aprobada' : 'pendiente',
+        // 🌐 Datos geográficos enriquecidos por Georef (si las columnas existen en la BD)
+        ...(locationData && {
+          provincia: locationData.provincia,
+          municipio: locationData.municipio || locationData.departamento,
+          direccion: locationData.direccion_completa,
+        }),
       }])
 
       if (dbError) throw dbError
@@ -142,15 +152,48 @@ export default function CreateReport({ onClose }) {
       {/* Formulario con Scroll */}
       <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 pt-8 pb-12 space-y-10">
         
-        {/* Ubicación Visual */}
-        <div className="p-6 rounded-[32px] bg-blue-600/10 border border-blue-500/20 flex items-center gap-4">
-            <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center blue-glow">
-                <MapPin className="w-6 h-6 text-white" />
+        {/* Ubicación Visual - Dirección real desde API Georef */}
+        <div className="p-5 rounded-[32px] bg-blue-600/10 border border-blue-500/20">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center blue-glow shrink-0">
+              <MapPin className="w-6 h-6 text-white" />
             </div>
-            <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-blue-400">GPS Activado</p>
-                <p className="text-white font-bold text-sm">Buenos Aires, Argentina</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-widest text-blue-400 flex items-center gap-2">
+                <Navigation className="w-3 h-3" />
+                GPS Activado
+              </p>
+              {isGeoLoading ? (
+                /* Shimmer mientras se resuelve la dirección */
+                <div className="mt-1 space-y-1.5">
+                  <div className="h-3.5 w-3/4 bg-white/5 rounded-full animate-pulse" />
+                  <div className="h-3 w-1/2 bg-white/5 rounded-full animate-pulse" />
+                </div>
+              ) : locationData ? (
+                /* Dirección resuelta correctamente */
+                <>
+                  <p className="text-white font-bold text-sm truncate mt-0.5">
+                    {locationData.direccion || locationData.departamento || locationData.provincia}
+                  </p>
+                  <p className="text-[11px] text-slate-400 truncate">
+                    {locationData.departamento && locationData.departamento !== locationData.provincia 
+                      ? `${locationData.departamento} · ${locationData.provincia}` 
+                      : locationData.provincia}
+                  </p>
+                </>
+              ) : (
+                /* Fallback si no hay datos Georef */
+                <p className="text-white font-bold text-sm mt-0.5">Buenos Aires, Argentina</p>
+              )}
             </div>
+          </div>
+          {/* Coordenadas exactas (colapsadas en estilo sutil) */}
+          {position && (
+            <div className="mt-3 pt-3 border-t border-blue-500/10 flex gap-4">
+              <span className="text-[9px] font-mono text-slate-500">Lat: {position.lat.toFixed(6)}</span>
+              <span className="text-[9px] font-mono text-slate-500">Lng: {position.lng.toFixed(6)}</span>
+            </div>
+          )}
         </div>
 
         {/* Foto */}
