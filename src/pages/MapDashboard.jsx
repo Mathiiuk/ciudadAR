@@ -26,7 +26,7 @@ export default function MapDashboard() {
   const { data, loading, handleMapChange } = useInfractions()
 
   return (
-    <div className="w-screen h-[100dvh] overflow-hidden overscroll-none flex flex-col relative bg-[#020617] touch-none">
+    <div className="w-screen h-[100dvh] overflow-hidden overscroll-none flex flex-col relative bg-[#020617]">
       <Header />
       
       <LocalityFilter onLocationSelect={setTargetLocation} />

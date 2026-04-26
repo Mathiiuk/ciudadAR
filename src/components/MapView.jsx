@@ -320,9 +320,13 @@ export default function MapView({ data, isHeatmapActive, isComunasActive, isMuni
     <MapContainer
       center={[-34.6037, -58.3816]} // Buenos Aires
       zoom={13}
-      style={{ height: '100%', width: '100%', touchAction: 'none' }}
+      style={{ height: '100%', width: '100%' }}
       zoomControl={false}
-      tap={false} // Evita el "ghost click" en móviles que puede trabar el drag
+      preferCanvas={true} // 🚀 Renderizado ultra-rápido en móviles
+      dragging={true}
+      touchZoom={true}
+      doubleClickZoom={true}
+      scrollWheelZoom={true}
       maxZoom={18}
     >
       <TileLayer
