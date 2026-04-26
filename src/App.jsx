@@ -5,8 +5,11 @@ import AdminPanel from './pages/AdminPanel'
 import UserProfile from './pages/UserProfile'
 import History from './pages/History'
 import ProtectedRoute from './components/ProtectedRoute'
+import { useOfflineSync } from './hooks/useOfflineSync'
 
 function App() {
+  useOfflineSync()
+
   return (
     <Routes>
       <Route path="/" element={<Login />} />

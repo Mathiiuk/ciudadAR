@@ -14,12 +14,29 @@
     @apply bg-[#020617] text-slate-100 m-0 p-0;
     font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
   }
+  
+  /* 🎇 Scrollbar Premium */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: rgba(2, 6, 23, 0.8); 
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(59, 130, 246, 0.3);
+    border-radius: 10px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(59, 130, 246, 0.6);
+  }
 }
 
-/* 💎 Vidrio con Alto Contraste */
+/* 💎 Vidrio con Alto Contraste Mejorado */
 .glass-panel {
-  @apply bg-slate-900/90 backdrop-blur-3xl border border-white/10;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  @apply bg-slate-900/40 backdrop-blur-3xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)];
+  /* Inner shadow to give depth */
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1), 0 20px 50px rgba(0, 0, 0, 0.5);
 }
 
 .blue-glow {
@@ -31,11 +48,6 @@
   background: #020617 !important;
 }
 
-/* Quitar el rectángulo de focus (outline) en polígonos SVG al hacer click */
-path.leaflet-interactive:focus {
-  outline: none !important;
-}
-
 /* Ajustes de UI de Leaflet */
 .leaflet-bar {
   @apply !border-none !shadow-2xl;
@@ -43,6 +55,22 @@ path.leaflet-interactive:focus {
 
 .leaflet-bar a {
   @apply !bg-slate-800 !text-white !border-slate-700 hover:!bg-slate-700;
+}
+
+/* 🌙 Estilos Dark Premium para Popups de Leaflet */
+.leaflet-popup-content-wrapper {
+  @apply !bg-slate-900/95 !backdrop-blur-xl !text-slate-200 !border !border-white/10 !rounded-3xl !shadow-2xl;
+  padding: 0;
+  overflow: hidden;
+}
+.leaflet-popup-content {
+  @apply !m-0;
+}
+.leaflet-popup-tip {
+  @apply !bg-slate-900/95 !border-white/10;
+}
+.leaflet-popup-close-button {
+  @apply !text-slate-400 hover:!text-white !p-4 !font-bold transition-colors z-10;
 }
 
 @keyframes float {
@@ -61,171 +89,50 @@ path.leaflet-interactive:focus {
   animation: float 4s ease-in-out infinite;
 }
 
-/* 🗺️ Overrides Premium para Popups de Leaflet */
-.leaflet-popup-content-wrapper {
-  background: rgba(15, 23, 42, 0.95) !important;
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: white !important;
-  border-radius: 24px !important;
-  padding: 4px !important;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+/* 📍 Estilos Premium para Marker Clusters */
+.marker-cluster {
+  background-clip: padding-box;
+  border-radius: 20px;
 }
-
-.leaflet-popup-tip {
-  background: rgba(15, 23, 42, 0.95) !important;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.leaflet-popup-content {
-  margin: 8px !important;
-}
-
-.leaflet-container a.leaflet-popup-close-button {
-  color: #94a3b8 !important;
-  padding: 12px !important;
-  font-size: 18px !important;
-  font-weight: 300 !important;
-}
-
-.leaflet-container a.leaflet-popup-close-button:hover {
-  color: #fff !important;
-  background: transparent !important;
-}
-
-/* Animación de pulso para marcadores personalizados */
-@keyframes markerPulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(var(--pulse-color), 0.7);
-  }
-
-  70% {
-    box-shadow: 0 0 0 15px rgba(var(--pulse-color), 0);
-  }
-
-  100% {
-    box-shadow: 0 0 0 0 rgba(var(--pulse-color), 0);
-  }
-}
-
-.marker-pulse {
-  animation: markerPulse 2s infinite;
+.marker-cluster div {
+  width: 38px;
+  height: 38px;
+  margin-left: 1px;
+  margin-top: 1px;
+  text-align: center;
   border-radius: 50%;
-}
-
-/* 🌟 Animaciones Fluidas para Popups */
-@keyframes popIn {
-  0% {
-    opacity: 0;
-    transform: scale(0.9) translateY(10px);
-  }
-
-  100% {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-/* 🏙️ Etiquetas PERMANENTES para identificar comunas sin hover */
-.leaflet-tooltip-permanent-comuna {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-}
-
-.comuna-permanent-label {
-  background: rgba(15, 23, 42, 0.7);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(96, 165, 250, 0.3);
-  color: #93c5fd;
-  font-size: 10px;
+  color: white;
+  font-family: 'Plus Jakarta Sans', sans-serif;
   font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  padding: 4px 10px;
-  border-radius: 10px;
-  white-space: nowrap;
-  pointer-events: none;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  @apply bg-blue-600/90 border-2 border-white/20 shadow-[0_0_20px_rgba(59,130,246,0.8)] backdrop-blur-md;
+}
+.marker-cluster span {
+  line-height: 38px;
 }
 
-.leaflet-tooltip-permanent-comuna::before {
-  display: none !important;
+/* 🏷️ Tooltips Permanentes (Nombres sobre polígonos) */
+.leaflet-tooltip.leaflet-tooltip-permanent-comuna,
+.leaflet-tooltip.leaflet-tooltip-permanent-municipio {
+  @apply !bg-slate-900/90 !backdrop-blur-md !text-white !font-bold !text-[10px] uppercase tracking-widest !border-none !shadow-xl !rounded-full !px-3 !py-1;
+}
+.leaflet-tooltip-top:before,
+.leaflet-tooltip-bottom:before,
+.leaflet-tooltip-left:before,
+.leaflet-tooltip-right:before {
+  @apply !hidden; /* Quitamos la flechita blanca molesta del tooltip */
 }
 
-/* 🏙️ Estilos para Popups de Comunas (Info de barrios) */
-.leaflet-popup-comuna {
-  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+/* 🏙️ Popups de Polígonos (Comunas/Municipios) */
+.popup-comuna-content {
+  @apply flex flex-col gap-2 p-5 min-w-[180px];
 }
-
-.leaflet-popup-comuna .leaflet-popup-content-wrapper {
-  background: rgba(2, 6, 23, 0.98) !important;
-  backdrop-filter: blur(20px) !important;
-  border: 1px solid rgba(59, 130, 246, 0.5) !important;
-  border-radius: 20px !important;
-  box-shadow: 0 0 40px rgba(59, 130, 246, 0.2), 0 25px 50px rgba(0, 0, 0, 0.8) !important;
+.popup-comuna-header {
+  @apply text-blue-400 font-black text-xs uppercase tracking-widest border-b border-white/10 pb-2 mb-1;
 }
-
-.leaflet-popup-comuna .leaflet-popup-tip {
-  background: rgba(2, 6, 23, 0.98) !important;
-  border: none !important;
-}
-
-.leaflet-popup-comuna .leaflet-popup-close-button {
-  color: #93c5fd !important;
-  top: 6px !important;
-  right: 6px !important;
-}
-
-/* 🗺️ Estilos para Tooltips permanentes de Municipios de Buenos Aires */
-.leaflet-tooltip-permanent-municipio {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  pointer-events: none;
-}
-
-.municipio-permanent-label {
-  font-size: 9px;
-  font-weight: 800;
-  color: rgba(74, 222, 128, 0.7);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  text-shadow: 0 0 8px rgba(0, 0, 0, 0.9), 0 0 3px rgba(0, 0, 0, 1);
-  white-space: nowrap;
-}
-
-/* Estilos para Popups de Municipios */
-.leaflet-popup-municipio {
-  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-}
-
-.leaflet-popup-municipio .leaflet-popup-content-wrapper {
-  background: rgba(2, 6, 23, 0.98) !important;
-  backdrop-filter: blur(20px) !important;
-  border: 1px solid rgba(34, 197, 94, 0.5) !important;
-  border-radius: 20px !important;
-  box-shadow: 0 0 40px rgba(34, 197, 94, 0.2), 0 25px 50px rgba(0, 0, 0, 0.8) !important;
-}
-
-.leaflet-popup-municipio .leaflet-popup-tip {
-  background: rgba(2, 6, 23, 0.98) !important;
-  border: none !important;
-}
-
-.popup-municipio-header {
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.15em;
-  color: #4ade80;
-  margin-bottom: 4px;
-}
-
-/* 📱 Responsive para etiquetas de municipios en mobile */
-@media (max-width: 768px) {
-  .municipio-permanent-label {
-    font-size: 7px;
-  }
+.popup-comuna-barrios {
+  @apply text-slate-300 font-semibold leading-snug;
 }

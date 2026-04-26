@@ -84,37 +84,8 @@ function MapFlyToTarget({ targetLocation }) {
   return null
 }
 
-// Bloquea el scroll nativo del documento cuando el dedo está sobre el mapa
-// Esto permite que Leaflet maneje TODOS los gestos (pan, pinch-zoom, doble tap) sin interferencia
-function MapScrollBlocker() {
-  const map = useMap()
-  useEffect(() => {
-    const container = map.getContainer()
+// (MapScrollBlocker eliminado para no interferir con el arrastre nativo de Leaflet)
 
-    // Prevenir scroll y pull-to-refresh del navegador solo dentro del mapa
-    const preventScroll = (e) => {
-      e.stopPropagation()
-      // Solo prevenimos si hay más de un toque O si es un deslizamiento horizontal
-      // Leaflet maneja todo internamente, el navegador no debe interferir
-      if (e.touches.length > 1) {
-        e.preventDefault()
-      } else if (e.touches.length === 1) {
-        e.preventDefault() // Prevenir scroll de una sola mano también
-      }
-    }
-
-    // Registramos el listener con passive:false para poder llamar preventDefault()
-    container.addEventListener('touchmove', preventScroll, { passive: false })
-    container.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true })
-
-    return () => {
-      container.removeEventListener('touchmove', preventScroll)
-    }
-  }, [map])
-  return null
-}
-
-// Botón de Geolocaliza ción con feedback háptico
 function GpsFixButton() {
   const map = useMap()
   const [tracking, setTracking] = useState(false)
@@ -238,7 +209,7 @@ export default function MapView({ data, isHeatmapActive, isComunasActive, isMuni
     // 📝 Popup con info del municipio
     const popupContent = `
       <div class="popup-comuna-content">
-        <div class="popup-municipio-header">📍 ${categoria.toUpperCase()}</div>
+        <div class="popup-comuna-header"><span>📍 ${categoria.toUpperCase()}</span></div>
         <p class="popup-comuna-barrios">${nombre}</p>
       </div>
     `
@@ -300,8 +271,8 @@ export default function MapView({ data, isHeatmapActive, isComunasActive, isMuni
     // 📝 Popup con información detallada de los barrios
     const popupContent = `
       <div class="popup-comuna-content">
-        <div class="popup-comuna-header">🏙️ COMUNA ${comuna}</div>
-        <p class="popup-comuna-barrios">${barrios}</p>
+        <div class="popup-comuna-header"><span>🏙️ COMUNA ${comuna}</span></div>
+        <p class="popup-comuna-barrios text-sm">${barrios}</p>
       </div>
     `
     layer.bindPopup(popupContent, {
@@ -349,9 +320,14 @@ export default function MapView({ data, isHeatmapActive, isComunasActive, isMuni
     <MapContainer
       center={[-34.6037, -58.3816]} // Buenos Aires
       zoom={13}
-      style={{ height: '100%', width: '100%', touchAction: 'none' }}
+      style={{ height: '100%', width: '100%' }}
       zoomControl={false}
-      tap={false} // Evita el "ghost click" en móviles que puede trabar el drag
+      preferCanvas={true} // 🚀 Renderizado ultra-rápido en móviles
+      dragging={true}
+      touchZoom={true}
+      doubleClickZoom={true}
+      scrollWheelZoom={true}
+      maxZoom={18}
     >
       <TileLayer
         url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
@@ -360,7 +336,6 @@ export default function MapView({ data, isHeatmapActive, isComunasActive, isMuni
       
       <MapController onMapChange={onMapChange} />
       <MapFlyToTarget targetLocation={targetLocation} />
-      <MapScrollBlocker />
       <GpsFixButton />
 
       {/* 🏙️ Capa de Comunas (GeoJSON oficial CABA) */}

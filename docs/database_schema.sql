@@ -1,5 +1,5 @@
 -- =================================================================================
--- ESQUEMA CONSOLIDADO CIUDAD-AR (PRODUCCIÓN - VERSIÓN FINAL ROBUSTA)
+-- ESQUEMA CONSOLIDADO CIUDAD-AR (PRODUCCIÓN - VERSIÓN FINAL)
 -- =================================================================================
 
 -- 1. EXTENSIONES
@@ -12,23 +12,16 @@ EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
 
--- 3. TABLAS NUCLEO (Usando IF NOT EXISTS para no romper si ya existen)
+-- 3. TABLAS NUCLEO
 CREATE TABLE IF NOT EXISTS public.profiles (
   id uuid REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   username text UNIQUE NOT NULL,
   full_name text,
   avatar_url text,
   role text DEFAULT 'ciudadano'::text NOT NULL,
+  jurisdiction text, -- Municipio o Provincia asignada al oficial para control zonal
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS public.infraction_types (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  name text UNIQUE NOT NULL,
-  description text,
-  severity_level integer DEFAULT 1,
-  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.infractions (
@@ -36,24 +29,37 @@ CREATE TABLE IF NOT EXISTS public.infractions (
   user_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
   location geography(POINT, 4326) NOT NULL,
   image_url text NOT NULL,
-  ocr_data jsonb,
+  type text,
+  description text,
   status public.infraction_status DEFAULT 'pendiente'::public.infraction_status NOT NULL,
+  
+  -- Datos Geográficos (Enriquecidos vía Georef)
+  provincia_nombre text,
+  municipio_nombre text,
+  direccion text,
+  
+  ocr_data jsonb,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS public.high_priority_zones (
+CREATE TABLE IF NOT EXISTS public.notifications (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  center_location geography(POINT, 4326) NOT NULL,
-  infraction_count int NOT NULL,
+  user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  title text NOT NULL,
+  message text NOT NULL,
+  read boolean DEFAULT false NOT NULL,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 4. GARANTÍA DE COLUMNAS (Para arreglar tablas que ya existían pero estaban incompletas)
-ALTER TABLE public.infractions ADD COLUMN IF NOT EXISTS type text;
-ALTER TABLE public.infractions ADD COLUMN IF NOT EXISTS description text;
+-- 4. ÍNDICES DE RENDIMIENTO
+CREATE INDEX IF NOT EXISTS idx_infractions_user_id ON public.infractions(user_id);
+CREATE INDEX IF NOT EXISTS idx_infractions_status ON public.infractions(status);
+CREATE INDEX IF NOT EXISTS idx_infractions_municipio ON public.infractions(municipio_nombre);
+CREATE INDEX IF NOT EXISTS idx_profiles_jurisdiction ON public.profiles(jurisdiction);
+CREATE INDEX IF NOT EXISTS idx_infractions_location ON public.infractions USING GIST (location);
 
--- 5. FUNCIONES Y TRIGGERS (Re-creables)
+-- 5. FUNCIONES DE APOYO Y TRIGGERS
 CREATE OR REPLACE FUNCTION public.handle_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -62,37 +68,67 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION public.check_high_priority_zone()
-RETURNS TRIGGER AS $$
-DECLARE
-  recent_count INT;
-BEGIN
-  SELECT count(*) INTO recent_count FROM public.infractions
-  WHERE created_at > (now() - interval '1 hour')
-    AND ST_DWithin(location, NEW.location, 100);
+CREATE OR REPLACE FUNCTION public.get_auth_user_role()
+RETURNS text AS $$
+  SELECT role FROM public.profiles WHERE id = (select auth.uid());
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
 
-  IF recent_count >= 5 THEN
-    INSERT INTO public.high_priority_zones(center_location, infraction_count)
-    VALUES (NEW.location, recent_count);
+CREATE OR REPLACE FUNCTION public.get_auth_user_jurisdiction()
+RETURNS text AS $$
+  SELECT jurisdiction FROM public.profiles WHERE id = (select auth.uid());
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
+
+-- Trigger para notificaciones automáticas
+CREATE OR REPLACE FUNCTION public.handle_infraction_status_change()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF (OLD.status IS DISTINCT FROM NEW.status) THEN
+    INSERT INTO public.notifications (user_id, title, message)
+    VALUES (
+      NEW.user_id,
+      'Actualización de Reporte',
+      'El estado de tu reporte "' || NEW.type || '" ha cambiado de ' || OLD.status || ' a ' || NEW.status || '.'
+    );
   END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Instancia de triggers con limpieza previa
-DROP TRIGGER IF EXISTS set_profiles_updated_at ON public.profiles;
-CREATE TRIGGER set_profiles_updated_at BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+DROP TRIGGER IF EXISTS trigger_infraction_status_notification ON public.infractions;
+CREATE TRIGGER trigger_infraction_status_notification
+AFTER UPDATE ON public.infractions
+FOR EACH ROW EXECUTE FUNCTION handle_infraction_status_change();
 
-DROP TRIGGER IF EXISTS set_infractions_updated_at ON public.infractions;
-CREATE TRIGGER set_infractions_updated_at BEFORE UPDATE ON public.infractions FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+-- 6. SEGURIDAD RLS
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.infractions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
-DROP TRIGGER IF EXISTS trigger_high_priority ON public.infractions;
-CREATE TRIGGER trigger_high_priority AFTER INSERT ON public.infractions FOR EACH ROW EXECUTE FUNCTION check_high_priority_zone();
+CREATE POLICY "Perfil publico" ON public.profiles FOR SELECT USING (true);
+CREATE POLICY "Auto-insercion perfil" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
 
--- 6. FUNCIONES RPC (PARA EL FRONTEND)
+CREATE POLICY "ciudadano_inserta" ON public.infractions FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "oficial_gestiona" ON public.infractions FOR UPDATE USING (
+    public.get_auth_user_role() = 'oficial' AND 
+    (public.get_auth_user_jurisdiction() IS NULL OR municipio_nombre = public.get_auth_user_jurisdiction() OR provincia_nombre = public.get_auth_user_jurisdiction())
+);
+CREATE POLICY "lectura_inteligente" ON public.infractions FOR SELECT USING (
+    auth.uid() = user_id OR status = 'aprobada' OR 
+    (public.get_auth_user_role() = 'oficial' AND (public.get_auth_user_jurisdiction() IS NULL OR municipio_nombre = public.get_auth_user_jurisdiction() OR provincia_nombre = public.get_auth_user_jurisdiction()))
+);
+
+CREATE POLICY "Usuarios ven sus notificaciones" ON public.notifications 
+FOR SELECT USING (auth.uid() = user_id);
+
+-- 7. FUNCIONES RPC (FRONTEND API)
+-- Mapa Dinámico (Cercanía) con filtro de jurisdicción
 CREATE OR REPLACE FUNCTION public.get_infractions_nearby(p_lat double precision, p_lng double precision, p_radius_meters double precision)
 RETURNS jsonb AS $$
+DECLARE
+  v_jurisdiction text;
 BEGIN
+  v_jurisdiction := public.get_auth_user_jurisdiction();
+
   RETURN (
     SELECT jsonb_build_object(
       'type', 'FeatureCollection',
@@ -112,31 +148,78 @@ BEGIN
     )
     FROM public.infractions
     WHERE ST_DWithin(location, ST_SetSRID(ST_MakePoint(p_lng, p_lat), 4326)::geography, p_radius_meters)
+    AND (v_jurisdiction IS NULL OR municipio_nombre = v_jurisdiction OR provincia_nombre = v_jurisdiction)
   );
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY INVOKER;
 
--- 7. SEGURIDAD RLS
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.infractions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.high_priority_zones ENABLE ROW LEVEL SECURITY;
+-- Clustering Server-Side
+CREATE OR REPLACE FUNCTION public.get_clustered_infractions(p_lat double precision, p_lng double precision, p_radius_meters double precision, p_grid_size double precision DEFAULT 0.01)
+RETURNS jsonb AS $$
+DECLARE
+  v_jurisdiction text;
+BEGIN
+  v_jurisdiction := public.get_auth_user_jurisdiction();
 
--- Limpieza de políticas existentes para evitar errores de duplicados
-DROP POLICY IF EXISTS "Perfil publico" ON public.profiles;
-DROP POLICY IF EXISTS "Auto-insercion perfil" ON public.profiles;
-DROP POLICY IF EXISTS "ciudadano_inserta" ON public.infractions;
-DROP POLICY IF EXISTS "oficial_gestiona" ON public.infractions;
-DROP POLICY IF EXISTS "lectura_inteligente" ON public.infractions;
-DROP POLICY IF EXISTS "Zonas publicas" ON public.high_priority_zones;
+  RETURN (
+    SELECT jsonb_build_object(
+      'type', 'FeatureCollection',
+      'features', COALESCE(jsonb_agg(
+        jsonb_build_object(
+          'type', 'Feature',
+          'geometry', ST_AsGeoJSON(ST_Centroid(ST_Collect(location::geometry)))::jsonb,
+          'properties', jsonb_build_object(
+            'is_cluster', count(*) > 1,
+            'point_count', count(*),
+            'id', (array_agg(id))[1],
+            'image_url', (array_agg(image_url))[1],
+            'status', (array_agg(status))[1],
+            'type_name', (array_agg(type))[1],
+            'created_at', (array_agg(created_at))[1]
+          )
+        )
+      ), '[]'::jsonb)
+    )
+    FROM public.infractions
+    WHERE ST_DWithin(location, ST_SetSRID(ST_MakePoint(p_lng, p_lat), 4326)::geography, p_radius_meters)
+    AND (v_jurisdiction IS NULL OR municipio_nombre = v_jurisdiction OR provincia_nombre = v_jurisdiction)
+    GROUP BY ST_SnapToGrid(location::geometry, p_grid_size)
+  );
+END;
+$$ LANGUAGE plpgsql STABLE SECURITY INVOKER;
 
-CREATE POLICY "Perfil publico" ON public.profiles FOR SELECT USING (true);
-CREATE POLICY "Auto-insercion perfil" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
-CREATE POLICY "ciudadano_inserta" ON public.infractions FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "oficial_gestiona" ON public.infractions FOR UPDATE USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'oficial')
-);
-CREATE POLICY "lectura_inteligente" ON public.infractions FOR SELECT USING (
-    auth.uid() = user_id OR status = 'aprobada' OR 
-    EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'oficial')
-);
-CREATE POLICY "Zonas publicas" ON public.high_priority_zones FOR SELECT USING (true);
+-- Analítica avanzada
+CREATE OR REPLACE FUNCTION public.get_infraction_stats(p_days_ago int DEFAULT 30)
+RETURNS jsonb AS $$
+DECLARE
+  v_jurisdiction text;
+BEGIN
+  v_jurisdiction := public.get_auth_user_jurisdiction();
+
+  RETURN (
+    SELECT jsonb_build_object(
+      'trends', (
+        SELECT COALESCE(jsonb_agg(d), '[]'::jsonb) FROM (
+          SELECT date_trunc('day', created_at)::date as date, type, count(*) as count
+          FROM public.infractions
+          WHERE created_at > (now() - (p_days_ago || ' days')::interval)
+          AND (v_jurisdiction IS NULL OR municipio_nombre = v_jurisdiction OR provincia_nombre = v_jurisdiction)
+          GROUP BY 1, 2
+          ORDER BY 1 ASC
+        ) d
+      ),
+      'status_dist', (
+        SELECT COALESCE(jsonb_agg(s), '[]'::jsonb) FROM (
+          SELECT status, count(*) as count
+          FROM public.infractions
+          WHERE (v_jurisdiction IS NULL OR municipio_nombre = v_jurisdiction OR provincia_nombre = v_jurisdiction)
+          GROUP BY 1
+        ) s
+      ),
+      'total_count', (SELECT count(*) FROM public.infractions WHERE (v_jurisdiction IS NULL OR municipio_nombre = v_jurisdiction OR provincia_nombre = v_jurisdiction)),
+      'pending_count', (SELECT count(*) FROM public.infractions WHERE status = 'pendiente' AND (v_jurisdiction IS NULL OR municipio_nombre = v_jurisdiction OR provincia_nombre = v_jurisdiction)),
+      'assigned_jurisdiction', v_jurisdiction
+    )
+  );
+END;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
