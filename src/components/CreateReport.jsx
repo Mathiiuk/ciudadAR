@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import PrivacyEditor from './PrivacyEditor'
 import { verifyInfractionImage } from '../utils/verifyInfractionWithAI'
 import { useReverseGeocode } from '../hooks/useReverseGeocode'
+import { initDB } from '../hooks/useOfflineSync'
 
 const INFRACTION_TYPES = [
   'Mal Estacionamiento',
@@ -59,6 +60,29 @@ export default function CreateReport({ onClose }) {
     setIsSubmitting(true)
     setUploadError(null)
     setVerifyResult(null)
+
+    // Lógica Offline First
+    if (!navigator.onLine) {
+      try {
+        const db = await initDB()
+        await db.add('reports', {
+          user_id: user.id,
+          position,
+          imageBlob: imageFile,
+          type,
+          description: sanitizedDescription,
+          locationData,
+          timestamp: Date.now()
+        })
+        console.log("Reporte guardado en modo offline.")
+        onClose()
+        return
+      } catch (err) {
+        setUploadError("Error guardando reporte offline.")
+        setIsSubmitting(false)
+        return
+      }
+    }
 
     if (!import.meta.env.DEV) {
       try {
@@ -116,8 +140,8 @@ export default function CreateReport({ onClose }) {
         status: verification.valid ? 'aprobada' : 'pendiente',
         // 🌐 Datos geográficos enriquecidos por Georef (si las columnas existen en la BD)
         ...(locationData && {
-          provincia: locationData.provincia,
-          municipio: locationData.municipio || locationData.departamento,
+          provincia_nombre: locationData.provincia,
+          municipio_nombre: locationData.municipio || locationData.departamento,
           direccion: locationData.direccion_completa,
         }),
       }])

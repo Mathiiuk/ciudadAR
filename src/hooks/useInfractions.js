@@ -12,30 +12,18 @@ export function useInfractions() {
   const fetchInfractions = useCallback(async () => {
     setLoading(true)
     try {
-      const { lat, lng, radius } = lastMapState.current
-      
-      // Usamos la función RPC que ya está definida en la base de datos para PostGIS
-      const { data: geojson, error } = await supabase
-        .rpc('get_infractions_nearby', {
-          p_lat: lat,
-          p_lng: lng,
-          p_radius_meters: radius || 5000 // 5km por defecto
-        })
+      // Consulta estándar sin necesidad de RPC, segura contra 404s en desarrollo/producción
+      const { data: infractions, error } = await supabase
+        .from('infractions')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100)
       
       if (error) throw error
-      
-      // Aplanamos el FeatureCollection de GeoJSON a un array de objetos que el Mapa entienda
-      if (geojson && geojson.features) {
-        const flattened = geojson.features.map(f => ({
-          ...f.properties,
-          location: f.geometry, // Esto es un objeto {type, coordinates}
-          type: f.properties.type_name // El RPC devuelve type_name según el esquema
-        }))
-        setData(flattened)
-      }
+      if (infractions) setData(infractions)
 
     } catch (error) {
-      console.error("Error cargando infracciones via RPC:", error.message)
+      console.error("Error cargando infracciones:", error.message)
     } finally {
       setLoading(false)
     }
